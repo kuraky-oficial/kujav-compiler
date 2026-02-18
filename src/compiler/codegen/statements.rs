@@ -1,3 +1,4 @@
+// src/compiler/codegen/statements.rs
 use crate::compiler::codegen::{Compiler, MethodInfo};
 use crate::parser::ast::Stmt;
 
@@ -5,40 +6,41 @@ impl Compiler {
     pub fn compile_statement(&mut self, stmt: Stmt) {
         match stmt {
             Stmt::Let(name, expr) => {
-                let is_ref = self.is_ref_expr(&expr); // Detecta String o Array
+                let is_ref = self.is_ref_expr(&expr);
                 let slot = if let Some(&s) = self.variables.get(&name) { s } else {
                     let s = self.next_slot; self.variables.insert(name.clone(), s);
                     self.next_slot += 1; s
                 };
                 
-                // Guardamos el tipo para que Identifier sepa qué cargar luego
                 let type_sig = if is_ref { "Ljava/lang/Object;".to_string() } else { "I".to_string() };
                 self.variable_types.insert(name.clone(), type_sig);
 
                 self.compile_expression(expr);
-                self.current_bytecode.push(if is_ref { 0x3A } else { 0x36 }); // astore o istore
+                self.current_bytecode.push(if is_ref { 0x3A } else { 0x36 }); 
                 self.current_bytecode.push(slot);
             }
             Stmt::Print(expr) => {
                 let is_ref = self.is_ref_expr(&expr);
-                let sys_n = self.cp.add_utf8("java/lang/System");
-                let sys_c = self.cp.add_class(sys_n);
-                let out_n = self.cp.add_utf8("out");
+                let sys_u = self.cp.add_utf8("java/lang/System");
+                let sys_c = self.cp.add_class(sys_u);
+                let out_u = self.cp.add_utf8("out");
                 let out_s = self.cp.add_utf8("Ljava/io/PrintStream;");
-                let nt_out = self.cp.add_name_and_type(out_n, out_s);
+                let nt_out = self.cp.add_name_and_type(out_u, out_s);
                 let f_out = self.cp.add_field_ref(sys_c, nt_out);
-                self.current_bytecode.push(0xB2); self.current_bytecode.extend_from_slice(&f_out.to_be_bytes());
+                self.current_bytecode.push(0xB2); 
+                self.current_bytecode.extend_from_slice(&f_out.to_be_bytes());
 
                 self.compile_expression(expr);
 
                 let sig_str = if is_ref { "(Ljava/lang/Object;)V" } else { "(I)V" };
-                let ps_n = self.cp.add_utf8("java/io/PrintStream");
-                let ps_c = self.cp.add_class(ps_n);
-                let pr_n = self.cp.add_utf8("println");
+                let ps_u = self.cp.add_utf8("java/io/PrintStream");
+                let ps_c = self.cp.add_class(ps_u);
+                let pr_u = self.cp.add_utf8("println");
                 let pr_s = self.cp.add_utf8(sig_str);
-                let nt_pr = self.cp.add_name_and_type(pr_n, pr_s);
+                let nt_pr = self.cp.add_name_and_type(pr_u, pr_s);
                 let m_pr = self.cp.add_method_ref(ps_c, nt_pr);
-                self.current_bytecode.push(0xB6); self.current_bytecode.extend_from_slice(&m_pr.to_be_bytes());
+                self.current_bytecode.push(0xB6); 
+                self.current_bytecode.extend_from_slice(&m_pr.to_be_bytes());
             }
             Stmt::If(cond, if_b, else_b) => {
                 self.compile_expression(cond);
@@ -94,12 +96,12 @@ impl Compiler {
             Stmt::Call(name, args) => {
                 use crate::parser::ast::Expr;
                 self.compile_expression(Expr::Call(name, args));
-                self.current_bytecode.push(0x57); // pop
+                self.current_bytecode.push(0x57); 
             }
             Stmt::Return(expr) => {
-                let is_str = self.is_string_expr(&expr);
+                let is_ref = self.is_ref_expr(&expr);
                 self.compile_expression(expr);
-                self.current_bytecode.push(if is_str { 0xB0 } else { 0xAC });
+                self.current_bytecode.push(if is_ref { 0xB0 } else { 0xAC });
             }
         }
     }
