@@ -15,8 +15,7 @@ impl Compiler {
     pub fn compile_expression(&mut self, expr: Expr) {
         match expr {
             Expr::Number(val) => { 
-                self.current_bytecode.push(0x10); 
-                self.current_bytecode.push(val as u8); 
+                self.current_bytecode.push(0x10); self.current_bytecode.push(val as u8); 
             }
             Expr::Boolean(val) => { 
                 self.current_bytecode.push(if val { 0x04 } else { 0x03 }); 
@@ -24,14 +23,30 @@ impl Compiler {
             Expr::String(c) => {
                 let u_idx = self.cp.add_utf8(&c);
                 let s_idx = self.cp.add_string(u_idx);
-                self.current_bytecode.push(0x12); 
-                self.current_bytecode.push(s_idx as u8);
+                self.current_bytecode.push(0x12); self.current_bytecode.push(s_idx as u8);
             }
             Expr::Identifier(n) => {
                 if let Some(&slot) = self.variables.get(&n) {
                     let is_i = self.variable_types.get(&n).map(|s| s.as_str()) == Some("I");
                     self.current_bytecode.push(if is_i { 0x15 } else { 0x19 }); 
                     self.current_bytecode.push(slot);
+                }
+            }
+            Expr::ArrayLiteral(elems) => {
+                self.current_bytecode.push(0x10); self.current_bytecode.push(elems.len() as u8);
+                self.current_bytecode.push(0xBC); self.current_bytecode.push(10); // newarray T_INT
+                for (i, e) in elems.into_iter().enumerate() {
+                    self.current_bytecode.push(0x59); // dup
+                    self.current_bytecode.push(0x10); self.current_bytecode.push(i as u8);
+                    self.compile_expression(e);
+                    self.current_bytecode.push(0x4F); // iastore
+                }
+            }
+            Expr::ArrayAccess(name, idx) => {
+                if let Some(&slot) = self.variables.get(&name) { // Corregido: String implementa Borrow<str>
+                    self.current_bytecode.push(0x19); self.current_bytecode.push(slot); // aload
+                    self.compile_expression(*idx);
+                    self.current_bytecode.push(0x2E); // iaload
                 }
             }
             Expr::Binary(l, op, r) => {
@@ -137,31 +152,7 @@ impl Compiler {
                 self.current_bytecode.push(0xB6); 
                 self.current_bytecode.extend_from_slice(&m_next.to_be_bytes());
             }
-            Expr::ArrayLiteral(elems) => {
-    let size = elems.len() as u8;
-    self.current_bytecode.push(0x10); // bipush
-    self.current_bytecode.push(size);
-    
-    // T_INT = 10 para newarray
-    self.current_bytecode.push(0xBC); // newarray
-    self.current_bytecode.push(10); 
-    
-    for (i, e) in elems.into_iter().enumerate() {
-        self.current_bytecode.push(0x59); // dup (duplicar ref del array)
-        self.current_bytecode.push(0x10); // bipush (índice)
-        self.current_bytecode.push(i as u8);
-        self.compile_expression(e);       // valor
-        self.current_bytecode.push(0x4F); // iastore (guardar en array de ints)
-    }
-}
-Expr::ArrayAccess(name, idx) => {
-    if let Some(&slot) = self.variables.get(&name) {
-        self.current_bytecode.push(0x19); // aload (cargar ref del array)
-        self.current_bytecode.push(slot);
-        self.compile_expression(*idx);    // cargar índice
-        self.current_bytecode.push(0x2E); // iaload (leer de array de ints)
-    }
-}
+            
         }
     }
 }

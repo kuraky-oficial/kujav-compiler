@@ -5,7 +5,7 @@ pub enum KType {
     String,
     Bool,
     Void,
-    Array(Box<KType>), // <--- Nuevo: Tipo compuesto
+    Array(Box<KType>),
 }
 
 impl KType {
@@ -15,7 +15,7 @@ impl KType {
             KType::String => "Ljava/lang/String;".into(),
             KType::Bool => "Z".into(),
             KType::Void => "V".into(),
-            KType::Array(t) => format!("[{}", t.to_jvm_sig()), // [I para arreglo de Ints
+            KType::Array(t) => format!("[{}", t.to_jvm_sig()),
         }
     }
 }
