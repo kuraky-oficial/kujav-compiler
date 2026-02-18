@@ -10,6 +10,14 @@ pub enum KType {
 }
 
 impl KType {
+    // NUEVO: Ayuda al codegen a decidir entre instrucciones 'i' o 'a'
+    pub fn is_reference(&self) -> bool {
+        match self {
+            KType::String | KType::Array(_) => true,
+            _ => false,
+        }
+    }
+
     #[allow(dead_code)]
     pub fn to_jvm_sig(&self) -> String {
         match self {
