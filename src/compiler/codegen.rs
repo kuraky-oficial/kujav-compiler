@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::core::constant_pool::ConstantPool;
 use crate::parser::ast::{Stmt, Expr};
 
-// Estructura para guardar la información de cada función (habitación)
+// Guardamos los índices del pozo para no tener que agregarlos después
 pub struct MethodInfo {
     pub name_idx: u16,
     pub sig_idx: u16,
@@ -13,8 +13,8 @@ pub struct MethodInfo {
 
 pub struct Compiler {
     pub cp: ConstantPool,
-    pub methods: Vec<MethodInfo>,        // Lista de funciones definidas
-    pub current_bytecode: Vec<u8>,       // El código que se escribe ahora mismo
+    pub methods: Vec<MethodInfo>,        // Funciones extra
+    pub current_bytecode: Vec<u8>,       // Bytecode actual (main o fun)
     pub variables: HashMap<String, u8>,
     pub variable_types: HashMap<String, String>, 
     pub next_slot: u8, 
@@ -28,24 +28,22 @@ impl Compiler {
             current_bytecode: Vec::new(),
             variables: HashMap::new(),
             variable_types: HashMap::new(),
-            next_slot: 1, // Main reserva slot 0 para args
+            next_slot: 1, 
         }
     }
 
     pub fn compile_statement(&mut self, stmt: Stmt) {
         match stmt {
             Stmt::Function(name, params, body) => {
-                // Registramos nombre y firma en el pozo ANTES de escribir el archivo
+                // Registramos nombre y firma antes de cambiar de contexto
                 let n_idx = self.cp.add_utf8(&name);
                 let s_idx = self.cp.add_utf8("()V");
 
-                // Guardamos lo que estábamos haciendo en el main
                 let old_bc = std::mem::take(&mut self.current_bytecode);
                 let old_vars = std::mem::take(&mut self.variables);
                 let old_types = std::mem::take(&mut self.variable_types);
                 let old_slot = self.next_slot;
 
-                // Nueva memoria para la función
                 self.next_slot = 0;
                 for p in params {
                     self.variables.insert(p.clone(), self.next_slot);
@@ -54,7 +52,7 @@ impl Compiler {
                 }
 
                 for s in body { self.compile_statement(s); }
-                self.current_bytecode.push(0xB1); // return de la función
+                self.current_bytecode.push(0xB1); // return
 
                 self.methods.push(MethodInfo {
                     name_idx: n_idx,
@@ -63,7 +61,6 @@ impl Compiler {
                     max_locals: self.next_slot as u16,
                 });
 
-                // Volvemos al main
                 self.current_bytecode = old_bc;
                 self.variables = old_vars;
                 self.variable_types = old_types;
@@ -72,12 +69,14 @@ impl Compiler {
 
             Stmt::Call(name, args) => {
                 for arg in args { self.compile_expression(arg); }
-                let cls_u = self.cp.add_utf8("Salida");
-                let cls = self.cp.add_class(cls_u);
-                let n_u = self.cp.add_utf8(&name);
-                let s_u = self.cp.add_utf8("()V");
-                let nt = self.cp.add_name_and_type(n_u, s_u);
-                let m_ref = self.cp.add_method_ref(cls, nt);
+                
+                // Registro separado para evitar el error de préstamo (borrow checker)
+                let cls_utf = self.cp.add_utf8("Salida");
+                let cls_ref = self.cp.add_class(cls_utf);
+                let m_name = self.cp.add_utf8(&name);
+                let m_sig = self.cp.add_utf8("()V");
+                let nt = self.cp.add_name_and_type(m_name, m_sig);
+                let m_ref = self.cp.add_method_ref(cls_ref, nt);
                 
                 self.current_bytecode.push(0xB8); // invokestatic
                 self.current_bytecode.extend_from_slice(&m_ref.to_be_bytes());
@@ -96,11 +95,11 @@ impl Compiler {
             }
 
             Stmt::Print(expr) => {
-                let s_u = self.cp.add_utf8("java/lang/System");
-                let s_c = self.cp.add_class(s_u);
+                let s_utf = self.cp.add_utf8("java/lang/System");
+                let s_c = self.cp.add_class(s_utf);
                 let o_u = self.cp.add_utf8("out");
-                let o_t = self.cp.add_utf8("Ljava/io/PrintStream;");
-                let o_nt = self.cp.add_name_and_type(o_u, o_t);
+                let t_u = self.cp.add_utf8("Ljava/io/PrintStream;");
+                let o_nt = self.cp.add_name_and_type(o_u, t_u);
                 let f_out = self.cp.add_field_ref(s_c, o_nt);
                 self.current_bytecode.push(0xB2); 
                 self.current_bytecode.extend_from_slice(&f_out.to_be_bytes());
@@ -112,12 +111,12 @@ impl Compiler {
                 };
 
                 self.compile_expression(expr);
-                let p_u = self.cp.add_utf8("java/io/PrintStream");
-                let p_c = self.cp.add_class(p_u);
+                let ps_utf = self.cp.add_utf8("java/io/PrintStream");
+                let ps_c = self.cp.add_class(ps_utf);
                 let pr_n = self.cp.add_utf8("println");
                 let pr_s = self.cp.add_utf8(sig);
                 let pr_nt = self.cp.add_name_and_type(pr_n, pr_s);
-                let m_pr = self.cp.add_method_ref(p_c, pr_nt);
+                let m_pr = self.cp.add_method_ref(ps_c, pr_nt);
                 self.current_bytecode.push(0xB6); 
                 self.current_bytecode.extend_from_slice(&m_pr.to_be_bytes());
             }
@@ -136,16 +135,13 @@ impl Compiler {
                     self.current_bytecode.push(0xA7); 
                     let jump_to_end_idx = self.current_bytecode.len();
                     self.current_bytecode.extend_from_slice(&[0x00, 0x00]);
-
-                    let off_else = (self.current_bytecode.len() - opcode_pos) as i16;
-                    let b = off_else.to_be_bytes();
+                    let offset_to_else = (self.current_bytecode.len() - opcode_pos) as i16;
+                    let b = offset_to_else.to_be_bytes();
                     self.current_bytecode[jump_to_else_idx] = b[0];
                     self.current_bytecode[jump_to_else_idx + 1] = b[1];
-
                     for s in else_stmts { self.compile_statement(s); }
-
-                    let off_end = (self.current_bytecode.len() - goto_pos) as i16;
-                    let b_end = off_end.to_be_bytes();
+                    let offset_to_end = (self.current_bytecode.len() - goto_pos) as i16;
+                    let b_end = offset_to_end.to_be_bytes();
                     self.current_bytecode[jump_to_end_idx] = b_end[0];
                     self.current_bytecode[jump_to_end_idx + 1] = b_end[1];
                 } else {
@@ -161,20 +157,17 @@ impl Compiler {
                 self.compile_expression(condition);
                 let ifeq_pos = self.current_bytecode.len();
                 self.current_bytecode.push(0x99); 
-                let jump_to_end_idx = self.current_bytecode.len();
+                let jump_idx = self.current_bytecode.len();
                 self.current_bytecode.extend_from_slice(&[0x00, 0x00]);
-
                 for s in body { self.compile_statement(s); }
-
                 let goto_pos = self.current_bytecode.len();
                 self.current_bytecode.push(0xA7); 
                 let offset_to_start = (start_pos as i32 - goto_pos as i32) as i16;
                 self.current_bytecode.extend_from_slice(&offset_to_start.to_be_bytes());
-
                 let offset_to_end = (self.current_bytecode.len() - ifeq_pos) as i16;
                 let b = offset_to_end.to_be_bytes();
-                self.current_bytecode[jump_to_end_idx] = b[0];
-                self.current_bytecode[jump_to_end_idx + 1] = b[1];
+                self.current_bytecode[jump_idx] = b[0];
+                self.current_bytecode[jump_idx + 1] = b[1];
             }
         }
     }
@@ -183,8 +176,8 @@ impl Compiler {
         match expr {
             Expr::Number(val) => { self.current_bytecode.push(0x10); self.current_bytecode.push(val as u8); }
             Expr::String(c) => { 
-                let s_u = self.cp.add_utf8(&c);
-                let s_idx = self.cp.add_string(s_u);
+                let s_utf = self.cp.add_utf8(&c);
+                let s_idx = self.cp.add_string(s_utf);
                 self.current_bytecode.push(0x12); self.current_bytecode.push(s_idx as u8);
             }
             Expr::Identifier(name) => if let Some(&slot) = self.variables.get(&name) {
