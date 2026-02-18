@@ -8,7 +8,6 @@ use std::fs;
 use std::io::Write;
 
 fn main() -> std::io::Result<()> {
-    // Código de prueba: Definimos una variable y LA USAMOS en el print
     let source_code = r#"
         let nombre = "Edwin"
         print(nombre)
@@ -16,15 +15,12 @@ fn main() -> std::io::Result<()> {
 
     println!("🔨 Parseando código Kujav...");
     let ast = parser::parse_to_ast(source_code);
-
     let mut kujav_compiler = compiler::codegen::Compiler::new();
     
-    // Metadatos base
     let cls_utf8 = kujav_compiler.cp.add_utf8("Salida");
     let this_class = kujav_compiler.cp.add_class(cls_utf8);
     let obj_utf8 = kujav_compiler.cp.add_utf8("java/lang/Object");
     let super_class = kujav_compiler.cp.add_class(obj_utf8);
-    
     let main_name = kujav_compiler.cp.add_utf8("main");
     let main_type = kujav_compiler.cp.add_utf8("([Ljava/lang/String;)V");
     let code_attr = kujav_compiler.cp.add_utf8("Code");
@@ -35,12 +31,11 @@ fn main() -> std::io::Result<()> {
     kujav_compiler.bytecode.push(0xB1); 
 
     let mut file = fs::File::create("Salida.class")?;
+    file.write_all(&[0xCA, 0xFE, 0xBA, 0xBE])?;
+    file.write_all(&[0x00, 0x00, 0x00, 0x34])?;
+    file.write_all(&kujav_compiler.cp.to_bytes())?;
     
-    file.write_all(&[0xCA, 0xFE, 0xBA, 0xBE])?; 
-    file.write_all(&[0x00, 0x00, 0x00, 0x34])?; 
-    file.write_all(&kujav_compiler.cp.to_bytes())?; 
-    
-    file.write_all(&[0x00, 0x21])?; 
+    file.write_all(&[0x00, 0x21])?;
     file.write_all(&this_class.to_be_bytes())?; 
     file.write_all(&super_class.to_be_bytes())?;
     file.write_all(&[0x00, 0x00, 0x00, 0x00])?; 
@@ -50,7 +45,6 @@ fn main() -> std::io::Result<()> {
     file.write_all(&main_type.to_be_bytes())?; 
     file.write_all(&[0x00, 0x01])?; 
 
-    // ATRIBUTO CODE: Definimos max_locals según las variables usadas
     file.write_all(&code_attr.to_be_bytes())?; 
     let attr_len: u32 = 12 + kujav_compiler.bytecode.len() as u32;
     file.write_all(&attr_len.to_be_bytes())?;

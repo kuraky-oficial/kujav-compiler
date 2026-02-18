@@ -7,7 +7,7 @@ pub struct Compiler {
     pub cp: ConstantPool,
     pub bytecode: Vec<u8>,
     pub variables: HashMap<String, u8>,
-    pub next_slot: u8, // Ahora es público para main.rs
+    pub next_slot: u8, 
 }
 
 impl Compiler {
@@ -16,7 +16,7 @@ impl Compiler {
             cp: ConstantPool::new(),
             bytecode: Vec::new(),
             variables: HashMap::new(),
-            next_slot: 1, // El slot 0 es para los argumentos del main
+            next_slot: 1, 
         }
     }
 
@@ -53,7 +53,6 @@ impl Compiler {
                 let println_nt = self.cp.add_name_and_type(println_name, println_type);
                 let method_println = self.cp.add_method_ref(ps_cls, println_nt);
 
-                // Preparar System.out
                 self.bytecode.push(0xB2); // getstatic
                 self.bytecode.extend_from_slice(&field_out.to_be_bytes());
 
@@ -66,20 +65,17 @@ impl Compiler {
                     }
                     Expr::Identifier(name) => {
                         if let Some(&slot) = self.variables.get(&name) {
-                            self.bytecode.push(0x19); // aload (cargar referencia de variable)
+                            self.bytecode.push(0x19); // aload
                             self.bytecode.push(slot);
-                        } else {
-                            panic!("Error: Variable '{}' no definida", name);
                         }
                     }
                     _ => {}
                 }
 
-                // Llamar a println
                 self.bytecode.push(0xB6); // invokevirtual
                 self.bytecode.extend_from_slice(&method_println.to_be_bytes());
             }
-            _ => println!("⚠️ Instrucción no soportada aún."),
+            _ => {}
         }
     }
 }
