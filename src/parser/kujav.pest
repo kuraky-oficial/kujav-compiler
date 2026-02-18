@@ -1,25 +1,16 @@
 // src/parser/kujav.pest
 program = { SOI ~ (declaration | statement)* ~ EOI }
-
 declaration = { fun_decl | let_decl }
 let_decl    = { "let" ~ identifier ~ "=" ~ expression }
-// fun nombre(a, b) { ... }
 fun_decl    = { "fun" ~ identifier ~ "(" ~ parameter_list? ~ ")" ~ "{" ~ block ~ "}" }
-
 parameter_list = { identifier ~ ("," ~ identifier)* }
 argument_list  = { expression ~ ("," ~ expression)* }
-
-// Sentencias
 statement = { while_stmt | if_stmt | print_stmt | call_stmt | let_decl }
 print_stmt = { "print" ~ expression }
-// Llamada a funcion estilo Lua: nombre(args)
 call_stmt  = { identifier ~ "(" ~ argument_list? ~ ")" }
-
 if_stmt    = { "if" ~ expression ~ "{" ~ block ~ "}" ~ ("else" ~ "{" ~ block ~ "}")? }
 while_stmt = { "while" ~ expression ~ "{" ~ block ~ "}" }
 block      = { (declaration | statement)* }
-
-// Expresiones
 expression = { term ~ (comp_op ~ term)* }
 comp_op    = { "==" | "<" | ">" }
 term       = { factor ~ (add_op ~ factor)* }
@@ -27,10 +18,8 @@ add_op     = { "+" | "-" }
 factor     = { primary ~ (mul_op ~ primary)* }
 mul_op     = { "*" | "/" }
 primary    = { string | number | identifier }
-
 identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 number     = @{ ASCII_DIGIT+ }
 string     = { "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
-
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
 COMMENT    = _{ "--" ~ (!"\n" ~ ANY)* }

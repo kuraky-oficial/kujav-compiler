@@ -5,24 +5,26 @@ use std::fs; use std::io::Write;
 fn main() -> std::io::Result<()> {
     let source_code = r#"
         fun saludar() {
-            print "¡Hola desde Kujav fun!"
+            print "¡Hola desde una función de Kujav!"
         }
 
-        let x = 10
-        if x == 10 {
-            saludar()
+        let x = 5
+        while x > 0 {
+            print x
+            let x = x - 1
         }
+        saludar()
     "#;
 
     println!("🔨 Compilando Kujav...");
     let ast = parser::parse_to_ast(source_code);
     let mut kujav = compiler::codegen::Compiler::new();
     
-    // Preparar pozo de constantes base
+    // Registramos constantes iniciales
     let cls_u = kujav.cp.add_utf8("Salida");
     let this_c = kujav.cp.add_class(cls_u);
     let obj_u = kujav.cp.add_utf8("java/lang/Object");
-    let super_c = kujav_compiler.cp.add_class(obj_u);
+    let super_c = kujav.cp.add_class(obj_u);
     let m_n = kujav.cp.add_utf8("main");
     let m_t = kujav.cp.add_utf8("([Ljava/lang/String;)V");
     let c_a = kujav.cp.add_utf8("Code");
@@ -31,18 +33,17 @@ fn main() -> std::io::Result<()> {
     kujav.current_bytecode.push(0xB1); // return final del main
 
     let mut file = fs::File::create("Salida.class")?;
-    // Usamos Java 5 (0x31) para evitar el error de StackMapTable en saltos
-    file.write_all(&[0xCA, 0xFE, 0xBA, 0xBE, 0x00, 0x00, 0x00, 0x31])?;
+    file.write_all(&[0xCA, 0xFE, 0xBA, 0xBE, 0x00, 0x00, 0x00, 0x31])?; // Java 5
     file.write_all(&kujav.cp.to_bytes())?;
     file.write_all(&[0x00, 0x21])?;
     file.write_all(&this_c.to_be_bytes())?; file.write_all(&super_c.to_be_bytes())?;
     file.write_all(&[0x00, 0x00, 0x00, 0x00])?; 
 
-    // Cantidad de metodos: main + funciones del usuario
+    // MÉTODOS: Main + Funciones extra
     let num_methods = (1 + kujav.methods.len()) as u16;
     file.write_all(&num_methods.to_be_bytes())?;
 
-    // Escribir metodo 'main'
+    // Escribir 'main'
     file.write_all(&[0x00, 0x09])?; // public static
     file.write_all(&m_n.to_be_bytes())?; file.write_all(&m_t.to_be_bytes())?;
     file.write_all(&[0x00, 0x01])?; file.write_all(&c_a.to_be_bytes())?;
@@ -53,12 +54,10 @@ fn main() -> std::io::Result<()> {
     file.write_all(&kujav.current_bytecode)?;
     file.write_all(&[0x00, 0x00, 0x00, 0x00])?;
 
-    // Escribir cada funcion 'fun'
+    // Escribir funciones 'fun'
     for m in &kujav.methods {
         file.write_all(&[0x00, 0x09])?; // public static
-        let name_idx = kujav.cp.add_utf8(&m.name);
-        let sig_idx = kujav.cp.add_utf8("()V");
-        file.write_all(&name_idx.to_be_bytes())?; file.write_all(&sig_idx.to_be_bytes())?;
+        file.write_all(&m.name_idx.to_be_bytes())?; file.write_all(&m.sig_idx.to_be_bytes())?;
         file.write_all(&[0x00, 0x01])?; file.write_all(&c_a.to_be_bytes())?;
         let attr_len: u32 = 12 + m.bytecode.len() as u32;
         file.write_all(&attr_len.to_be_bytes())?;
@@ -68,7 +67,7 @@ fn main() -> std::io::Result<()> {
         file.write_all(&[0x00, 0x00, 0x00, 0x00])?;
     }
 
-    file.write_all(&[0x00, 0x00])?; // Atributos de clase
+    file.write_all(&[0x00, 0x00])?; 
     println!("✅ Salida.class generada con éxito.");
     Ok(())
 }
