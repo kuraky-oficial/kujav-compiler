@@ -15,6 +15,7 @@ pub enum Stmt {
     Print(Expr),
     If(Expr, Vec<Stmt>, Option<Vec<Stmt>>),
     While(Expr, Vec<Stmt>),
-    Function(String, Vec<String>, Vec<Stmt>), // Definicion
+    Function(String, Vec<String>, Vec<Stmt>, Option<String>), // Añadimos Option<String> para el tipo de retorno
+    Return(Expr), // Definicion
     Call(String, Vec<Expr>),                 // Llamada
 }

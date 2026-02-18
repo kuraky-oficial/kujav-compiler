@@ -2,10 +2,11 @@
 program = { SOI ~ (declaration | statement)* ~ EOI }
 declaration = { fun_decl | let_decl }
 let_decl    = { "let" ~ identifier ~ "=" ~ expression }
-fun_decl    = { "fun" ~ identifier ~ "(" ~ parameter_list? ~ ")" ~ "{" ~ block ~ "}" }
+fun_decl = { "fun" ~ identifier ~ "(" ~ parameter_list? ~ ")" ~ (":" ~ identifier)? ~ "{" ~ block ~ "}" }
 parameter_list = { identifier ~ ("," ~ identifier)* }
 argument_list  = { expression ~ ("," ~ expression)* }
-statement = { while_stmt | if_stmt | print_stmt | call_stmt | let_decl }
+statement = { while_stmt | if_stmt | print_stmt | call_stmt | let_decl | return_stmt }
+return_stmt = { "return" ~ expression }
 print_stmt = { "print" ~ expression }
 call_stmt  = { identifier ~ "(" ~ argument_list? ~ ")" }
 if_stmt    = { "if" ~ expression ~ "{" ~ block ~ "}" ~ ("else" ~ "{" ~ block ~ "}")? }
