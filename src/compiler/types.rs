@@ -10,7 +10,7 @@ pub enum KType {
 }
 
 impl KType {
-    // NUEVO: Ayuda al codegen a decidir entre instrucciones 'i' o 'a'
+    #[allow(dead_code)] // <--- Esto elimina la advertencia
     pub fn is_reference(&self) -> bool {
         match self {
             KType::String | KType::Array(_) => true,

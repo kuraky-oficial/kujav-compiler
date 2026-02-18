@@ -12,6 +12,7 @@ pub enum Expr {
     ArrayAccess(String, Box<Expr>), // String para el nombre de la variable
 }
 
+// src/parser/ast.rs
 #[derive(Debug, Clone)]
 pub enum Stmt {
     Let(String, Expr),
@@ -21,4 +22,5 @@ pub enum Stmt {
     Function(String, Vec<String>, Vec<Stmt>, Option<String>),
     Call(String, Vec<Expr>),
     Return(Expr),
+    IndexAssign(String, Expr, Expr), // <--- NUEVO: (nombre, indice, nuevo_valor)
 }
