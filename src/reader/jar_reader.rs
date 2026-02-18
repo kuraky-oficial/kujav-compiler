@@ -1,7 +1,5 @@
 use std::fs::File;
-use std::io::Read;
 use zip::ZipArchive;
-use cafebabe::parse_class;
 
 pub struct JarMetadata {
     pub class_names: Vec<String>,

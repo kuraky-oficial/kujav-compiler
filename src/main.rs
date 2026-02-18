@@ -20,6 +20,10 @@ fn main() -> std::io::Result<()> {
     for stmt in ast {
         kujav_compiler.compile_statement(stmt);
     }
+    kujav_compiler.bytecode.push(0xB1); 
+
+    // 5. Escribir el archivo final (usando la estructura de Fase A)
+    let mut file = fs::File::create("Salida.class")?;
 
     println!("✅ Compilación finalizada.");
     Ok(())

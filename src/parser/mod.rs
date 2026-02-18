@@ -1,4 +1,5 @@
-use pest::Parser;
+pub mod ast; // Esto le dice a Rust que busque ast.rs
+use pest_derive::Parser;
 use crate::parser::ast::{Expr, Stmt};
 
 #[derive(pest_derive::Parser)]
