@@ -1,0 +1,10 @@
+[package]
+name = "kujav-compiler"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+cafebabe = "0.3.0"
+zip = "0.6.4"
+pest = "2.6"
+pest_derive = "2.6"
