@@ -58,10 +58,12 @@ fn process_expr(pair: pest::iterators::Pair<Rule>) -> Expr {
 }
 
 fn process_term(pair: pest::iterators::Pair<Rule>) -> Expr {
-    match pair.as_rule() {
-        Rule::string => Expr::String(pair.as_str().replace("\"", "")),
-        Rule::number => Expr::Number(pair.as_str().parse().unwrap()),
-        Rule::identifier => Expr::Identifier(pair.as_str().to_string()),
-        _ => unreachable!(),
+    // Entramos a lo que hay DENTRO del término
+    let inner = pair.into_inner().next().expect("Term vacío");
+    match inner.as_rule() {
+        Rule::string => Expr::String(inner.as_str().replace("\"", "")),
+        Rule::number => Expr::Number(inner.as_str().parse().unwrap()),
+        Rule::identifier => Expr::Identifier(inner.as_str().to_string()),
+        _ => unreachable!("Regla no esperada en term: {:?}", inner.as_rule()),
     }
 }

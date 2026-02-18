@@ -4,7 +4,7 @@ pub enum Expr {
     Number(i32),
     String(String),
     Identifier(String),
-    Binary(Box<Expr>, String, Box<Expr>), // Nueva: para x + y
+    Binary(Box<Expr>, String, Box<Expr>), // Para operaciones como x + y
 }
 
 #[allow(dead_code)]

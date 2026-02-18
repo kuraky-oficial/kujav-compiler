@@ -1,5 +1,4 @@
 // src/parser/kujav.pest
-
 program = { SOI ~ (declaration | statement)* ~ EOI }
 
 declaration = { fun_decl | let_decl }
@@ -10,7 +9,7 @@ parameter_list = { identifier ~ ("," ~ identifier)* }
 statement = { print_stmt | let_decl }
 print_stmt = { "print" ~ "(" ~ expression ~ ")" }
 
-// Actualizamos para permitir sumas: término + término
+// Soporte para aritmética: término + término
 expression = { term ~ (add_op ~ term)* }
 term = { string | number | identifier }
 add_op = { "+" }

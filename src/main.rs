@@ -22,9 +22,9 @@ fn main() -> std::io::Result<()> {
     let this_class = kujav_compiler.cp.add_class(cls_utf8);
     let obj_utf8 = kujav_compiler.cp.add_utf8("java/lang/Object");
     let super_class = kujav_compiler.cp.add_class(obj_utf8);
-    let main_name = kujav_compiler.cp.add_utf8("main");
-    let main_type = kujav_compiler.cp.add_utf8("([Ljava/lang/String;)V");
-    let code_attr = kujav_compiler.cp.add_utf8("Code");
+    let m_name = kujav_compiler.cp.add_utf8("main");
+    let m_type = kujav_compiler.cp.add_utf8("([Ljava/lang/String;)V");
+    let c_attr = kujav_compiler.cp.add_utf8("Code");
 
     for stmt in ast {
         kujav_compiler.compile_statement(stmt);
@@ -42,15 +42,17 @@ fn main() -> std::io::Result<()> {
     file.write_all(&[0x00, 0x00, 0x00, 0x00])?; 
     
     file.write_all(&[0x00, 0x01, 0x00, 0x09])?; 
-    file.write_all(&main_name.to_be_bytes())?; 
-    file.write_all(&main_type.to_be_bytes())?; 
+    file.write_all(&m_name.to_be_bytes())?; 
+    file.write_all(&m_type.to_be_bytes())?; 
     file.write_all(&[0x00, 0x01])?; 
 
-    file.write_all(&code_attr.to_be_bytes())?; 
+    file.write_all(&c_attr.to_be_bytes())?; 
     let attr_len: u32 = 12 + kujav_compiler.bytecode.len() as u32;
     file.write_all(&attr_len.to_be_bytes())?;
-    file.write_all(&[0x00, 0x02])?; // max_stack
-    file.write_all(&(kujav_compiler.next_slot as u16).to_be_bytes())?; // max_locals DINÁMICO
+    
+    // CORRECCIÓN: Aumentamos max_stack a 4 para evitar Operand stack overflow
+    file.write_all(&[0x00, 0x04])?; // max_stack
+    file.write_all(&(kujav_compiler.next_slot as u16).to_be_bytes())?; // max_locals
     
     file.write_all(&(kujav_compiler.bytecode.len() as u32).to_be_bytes())?;
     file.write_all(&kujav_compiler.bytecode)?;
