@@ -1,3 +1,4 @@
+// src/compiler/codegen.rs
 use std::collections::HashMap;
 use crate::core::constant_pool::ConstantPool;
 use crate::parser::ast::{Stmt, Expr};
@@ -65,20 +66,46 @@ impl Compiler {
                 self.bytecode.push(0xB6); 
                 self.bytecode.extend_from_slice(&m_pr.to_be_bytes());
             }
-            Stmt::If(condition, body) => {
+            Stmt::If(condition, if_body, else_body) => {
                 self.compile_expression(condition);
-                self.bytecode.push(0x99); // ifeq
-                let jump_idx = self.bytecode.len();
+                
+                // ifeq (0x99): si es falso, salta al ELSE o al FINAL
+                self.bytecode.push(0x99);
+                let jump_to_else_idx = self.bytecode.len();
                 self.bytecode.extend_from_slice(&[0x00, 0x00]); 
 
-                for s in body {
+                for s in if_body {
                     self.compile_statement(s);
                 }
 
-                let offset = (self.bytecode.len() - (jump_idx - 1)) as i16;
-                let offset_bytes = offset.to_be_bytes();
-                self.bytecode[jump_idx] = offset_bytes[0];
-                self.bytecode[jump_idx + 1] = offset_bytes[1];
+                if let Some(else_stmts) = else_body {
+                    // Al terminar el IF, saltamos el bloque ELSE
+                    self.bytecode.push(0xA7); // goto
+                    let jump_to_end_idx = self.bytecode.len();
+                    self.bytecode.extend_from_slice(&[0x00, 0x00]);
+
+                    // Parcheamos el salto inicial para que venga aquí
+                    let offset_to_else = (self.bytecode.len() - (jump_to_else_idx - 1)) as i16;
+                    let b = offset_to_else.to_be_bytes();
+                    self.bytecode[jump_to_else_idx] = b[0];
+                    self.bytecode[jump_to_else_idx + 1] = b[1];
+
+                    for s in else_stmts {
+                        self.compile_statement(s);
+                    }
+
+                    // Parcheamos el salto final del bloque IF
+                    let offset_to_end = (self.bytecode.len() - (jump_to_end_idx - 1)) as i16;
+                    let b_end = offset_to_end.to_be_bytes();
+                    self.bytecode[jump_to_end_idx] = b_end[0];
+                    self.bytecode[jump_to_end_idx + 1] = b_end[1];
+                } else {
+                    // No hay else, saltamos directo al final
+                    let offset = (self.bytecode.len() - (jump_to_else_idx - 1)) as i16;
+                    let b = offset.to_be_bytes();
+                    self.bytecode[jump_to_else_idx] = b[0];
+                    self.bytecode[jump_to_else_idx + 1] = b[1];
+                }
             }
             _ => {}
         }
@@ -112,6 +139,8 @@ impl Compiler {
                     "*" => self.bytecode.push(0x68),
                     "/" => self.bytecode.push(0x6C),
                     "==" => self.bytecode.extend_from_slice(&[0xA0, 0x00, 0x07, 0x04, 0xA7, 0x00, 0x04, 0x03]),
+                    "<"  => self.bytecode.extend_from_slice(&[0xA1, 0x00, 0x07, 0x04, 0xA7, 0x00, 0x04, 0x03]),
+                    ">"  => self.bytecode.extend_from_slice(&[0xA2, 0x00, 0x07, 0x04, 0xA7, 0x00, 0x04, 0x03]),
                     _ => {}
                 }
             }

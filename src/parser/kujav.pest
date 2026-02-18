@@ -3,7 +3,7 @@ program = { SOI ~ (declaration | statement)* ~ EOI }
 
 declaration = { fun_decl | let_decl }
 let_decl    = { "let" ~ identifier ~ "=" ~ expression }
-fun_decl    = { "fun" ~ identifier ~ "(" ~ parameter_list? ~ ")" ~ "{" ~ (declaration | statement)* ~ "}" }
+fun_decl    = { "fun" ~ identifier ~ "(" ~ parameter_list? ~ ")" ~ "{" ~ block ~ "}" }
 
 parameter_list = { identifier ~ ("," ~ identifier)* }
 
@@ -11,9 +11,11 @@ parameter_list = { identifier ~ ("," ~ identifier)* }
 statement = { if_stmt | print_stmt | let_decl }
 print_stmt = { "print" ~ expression }
 
-if_stmt = { "if" ~ expression ~ "{" ~ (declaration | statement)* ~ "}" }
+// Soporte para IF-ELSE
+if_stmt = { "if" ~ expression ~ "{" ~ block ~ "}" ~ ("else" ~ "{" ~ block ~ "}")? }
+block   = { (declaration | statement)* }
 
-// Niveles de precedencia para evitar el error 'primary'
+// Expresiones y Aritmética
 expression = { term ~ (comp_op ~ term)* }
 comp_op    = { "==" | "<" | ">" }
 
@@ -30,4 +32,4 @@ number     = @{ ASCII_DIGIT+ }
 string     = { "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
 
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
-COMMENT    = _{ "--" ~ (!"\n" ~ ANY)* }
+COMMENT    = _{ "--" ~ (!"\n" ~ ANY)* } // Comentarios estilo Lua --

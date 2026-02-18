@@ -1,3 +1,4 @@
+// src/parser/mod.rs
 pub mod ast; 
 use pest::Parser;
 use pest_derive::Parser as PestParser;
@@ -16,8 +17,7 @@ pub fn parse_to_ast(input: &str) -> Vec<Stmt> {
     for pair in pairs.into_inner() {
         match pair.as_rule() {
             Rule::declaration | Rule::statement => {
-                let inner = pair.into_inner().next().unwrap();
-                if let Some(stmt) = process_stmt(inner) {
+                if let Some(stmt) = process_stmt(pair) {
                     statements.push(stmt);
                 }
             }
@@ -28,31 +28,40 @@ pub fn parse_to_ast(input: &str) -> Vec<Stmt> {
 }
 
 fn process_stmt(pair: pest::iterators::Pair<Rule>) -> Option<Stmt> {
-    match pair.as_rule() {
+    let inner_pair = pair.into_inner().next().unwrap();
+    match inner_pair.as_rule() {
         Rule::let_decl => {
-            let mut inner_rules = pair.into_inner();
+            let mut inner_rules = inner_pair.into_inner();
             let name = inner_rules.next().unwrap().as_str().to_string();
             let expr = process_expr(inner_rules.next().unwrap());
             Some(Stmt::Let(name, expr))
         }
         Rule::print_stmt => {
-            let expr = process_expr(pair.into_inner().next().unwrap());
+            let expr = process_expr(inner_pair.into_inner().next().unwrap());
             Some(Stmt::Print(expr))
         }
         Rule::if_stmt => {
-            let mut inner = pair.into_inner();
+            let mut inner = inner_pair.into_inner();
             let condition = process_expr(inner.next().unwrap());
-            let mut body = Vec::new();
-            for p in inner {
-                if let Some(s) = process_stmt(p) {
-                    body.push(s);
-                }
+            
+            // Cuerpo del IF
+            let if_block = inner.next().unwrap();
+            let mut if_body = Vec::new();
+            for p in if_block.into_inner() {
+                if let Some(s) = process_stmt(p) { if_body.push(s); }
             }
-            Some(Stmt::If(condition, body))
-        }
-        Rule::statement | Rule::declaration => {
-            let inner = pair.into_inner().next().unwrap();
-            process_stmt(inner)
+            
+            // Cuerpo del ELSE (Opcional)
+            let mut else_body = None;
+            if let Some(else_block) = inner.next() {
+                let mut e_body = Vec::new();
+                for p in else_block.into_inner() {
+                    if let Some(s) = process_stmt(p) { e_body.push(s); }
+                }
+                else_body = Some(e_body);
+            }
+            
+            Some(Stmt::If(condition, if_body, else_body))
         }
         _ => None,
     }
