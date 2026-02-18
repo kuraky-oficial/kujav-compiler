@@ -119,6 +119,22 @@ impl Compiler {
         self.current_bytecode.push(0x4F); 
     }
 }
+Stmt::IndexAssign(name, idx_expr, val_expr) => {
+                if let Some(&slot) = self.variables.get(&name) {
+                    // 1. Cargar la referencia del arreglo
+                    self.current_bytecode.push(0x19); // aload
+                    self.current_bytecode.push(slot);
+                    
+                    // 2. Cargar el índice
+                    self.compile_expression(idx_expr);
+                    
+                    // 3. Cargar el nuevo valor
+                    self.compile_expression(val_expr);
+                    
+                    // 4. Guardar: iastore (saca ref, index y value del stack)
+                    self.current_bytecode.push(0x4F); 
+                }
+            }
         }
     }
 }

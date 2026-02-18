@@ -45,6 +45,22 @@ impl SemanticAnalyzer {
                 for a in args { self.check_expr(a)?; }
                 Ok(())
             }
+            // --- CORRECCIÓN: Validación de asignación en arreglos ---
+            Stmt::IndexAssign(name, idx_expr, val_expr) => {
+                if self.check_expr(idx_expr)? != KType::Int {
+                    return Err(format!("El índice para '{}' debe ser un entero", name));
+                }
+                let val_type = self.check_expr(val_expr)?;
+                match self.symbols.get(name) {
+                    Some(KType::Array(inner)) => {
+                        if **inner != val_type {
+                            return Err(format!("No puedes asignar {:?} a un arreglo de {:?}", val_type, inner));
+                        }
+                    },
+                    _ => return Err(format!("'{}' no es un arreglo o no está definido", name)),
+                }
+                Ok(())
+            }
         }
     }
 

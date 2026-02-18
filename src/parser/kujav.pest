@@ -8,6 +8,7 @@ parameter_list = { identifier ~ ("," ~ identifier)* }
 argument_list  = { expression ~ ("," ~ expression)* }
 
 statement = { while_stmt | if_stmt | print_stmt | index_assign_stmt | call_stmt | let_decl | return_stmt }
+
 index_assign_stmt = { identifier ~ "[" ~ expression ~ "]" ~ "=" ~ expression }
 print_stmt = { "print" ~ expression }
 return_stmt = { "return" ~ expression }

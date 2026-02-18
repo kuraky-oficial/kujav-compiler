@@ -96,6 +96,13 @@ fn process_stmt(pair: pest::iterators::Pair<Rule>) -> Option<Stmt> {
             }
             Some(Stmt::Call(name, args))
         }
+        Rule::index_assign_stmt => {
+            let mut inner = inner_pair.into_inner();
+            let name = inner.next().unwrap().as_str().to_string();
+            let idx_expr = process_expr(inner.next().unwrap());
+            let val_expr = process_expr(inner.next().unwrap());
+            Some(Stmt::IndexAssign(name, idx_expr, val_expr))
+        }
         _ => None,
     }
 }
