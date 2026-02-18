@@ -14,24 +14,14 @@ impl Compiler {
 
     pub fn compile_expression(&mut self, expr: Expr) {
         match expr {
-            Expr::Number(val) => { 
-                self.current_bytecode.push(0x10); 
-                self.current_bytecode.push(val as u8); 
-            }
-            Expr::Boolean(val) => { 
-                self.current_bytecode.push(if val { 0x04 } else { 0x03 }); 
-            }
+            Expr::Number(val) => { self.current_bytecode.push(0x10); self.current_bytecode.push(val as u8); }
+            Expr::Boolean(val) => { self.current_bytecode.push(if val { 0x04 } else { 0x03 }); }
+            Expr::String(c) => { /* Lógica LDC */ }
             Expr::Binary(l, op, r) => {
-                // Aquí usamos la lógica potente de concatenación con StringBuilder o iadd
-                // ... (mantenemos tu lógica de StringBuilder aquí)
+                // Aquí va la lógica de StringBuilder si es string, o iadd si es int
             }
-            Expr::Call(name, args) => {
-                for arg in args { self.compile_expression(arg); }
-                // ... (lógica de invokestatic)
-            }
-            Expr::Input => {
-                // ... (lógica de java/util/Scanner)
-            }
+            Expr::Input => { /* Lógica Scanner */ }
+            Expr::Identifier(n) => { /* Lógica ILOAD/ALOAD */ }
             _ => {}
         }
     }

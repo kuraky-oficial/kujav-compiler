@@ -1,11 +1,9 @@
 // src/main.rs
 mod core; mod reader; mod parser; mod compiler;
-use std::fs; use std::io::Write;
-use crate::compiler::semantics::SemanticAnalyzer; // Importamos el nuevo analista
+use crate::compiler::semantics::SemanticAnalyzer;
 
 fn main() -> std::io::Result<()> {
     let source_code = r#"
-        print "--- Calculadora de Tipos Kujav ---"
         let x = 10
         let mensaje = "El valor es: " + x
         print mensaje
@@ -15,6 +13,15 @@ fn main() -> std::io::Result<()> {
 
     // 1. ANÁLISIS SINTÁCTICO (AST)
     let ast = parser::parse_to_ast(source_code);
+
+    // NUEVA FASE: Análisis Semántico
+    let mut analyzer = SemanticAnalyzer::new();
+    for stmt in &ast {
+        if let Err(e) = analyzer.check_stmt(stmt) {
+            eprintln!("❌ Error de tipos: {}", e);
+            std::process::exit(1);
+        }
+    }
 
     // 2. ANÁLISIS SEMÁNTICO (NUEVA FASE)
     // Aquí es donde Kujav "piensa" antes de actuar

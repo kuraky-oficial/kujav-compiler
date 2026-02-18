@@ -1,3 +1,4 @@
-pub mod types;       // Nuevo archivo de tipos
-pub mod semantics;   // Nuevo archivo de análisis semántico
-pub mod codegen;
+// src/compiler/mod.rs
+pub mod types;
+pub mod semantics;
+pub mod codegen; // Esto buscará src/compiler/codegen/mod.rs

@@ -4,7 +4,6 @@ pub mod statements;
 
 use std::collections::HashMap;
 use crate::core::constant_pool::ConstantPool;
-use crate::compiler::types::KType;
 
 pub struct MethodInfo {
     pub name_idx: u16,

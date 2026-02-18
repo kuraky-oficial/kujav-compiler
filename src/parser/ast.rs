@@ -3,7 +3,7 @@
 pub enum Expr {
     Number(i32),
     String(String),
-    Boolean(bool), //
+    Boolean(bool),
     Identifier(String),
     Binary(Box<Expr>, String, Box<Expr>),
     Call(String, Vec<Expr>),
@@ -16,7 +16,7 @@ pub enum Stmt {
     Print(Expr),
     If(Expr, Vec<Stmt>, Option<Vec<Stmt>>),
     While(Expr, Vec<Stmt>),
-    Function(String, Vec<String>, Vec<Stmt>, Option<String>), // Con tipo de retorno opcional
+    Function(String, Vec<String>, Vec<Stmt>, Option<String>),
     Call(String, Vec<Expr>),
     Return(Expr),
 }
