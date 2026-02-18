@@ -1,21 +1,19 @@
 // src/parser/kujav.pest
 
-// Permitimos declaraciones (fun/let) o sentencias (print) en el nivel superior
 program = { SOI ~ (declaration | statement)* ~ EOI }
 
 declaration = { fun_decl | let_decl }
-
 let_decl = { "let" ~ identifier ~ "=" ~ expression }
-
 fun_decl = { "fun" ~ identifier ~ "(" ~ parameter_list? ~ ")" ~ "{" ~ statement* ~ "}" }
 
 parameter_list = { identifier ~ ("," ~ identifier)* }
-
 statement = { print_stmt | let_decl }
-
 print_stmt = { "print" ~ "(" ~ expression ~ ")" }
 
-expression = { string | number | identifier }
+// Actualizamos para permitir sumas: término + término
+expression = { term ~ (add_op ~ term)* }
+term = { string | number | identifier }
+add_op = { "+" }
 
 identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 number     = @{ ASCII_DIGIT+ }
