@@ -31,9 +31,9 @@ fn process_stmt(pair: pest::iterators::Pair<Rule>) -> Option<Stmt> {
     let inner_pair = pair.into_inner().next().unwrap();
     match inner_pair.as_rule() {
         Rule::let_decl => {
-            let mut inner_rules = inner_pair.into_inner();
-            let name = inner_rules.next().unwrap().as_str().to_string();
-            let expr = process_expr(inner_rules.next().unwrap());
+            let mut inner = inner_pair.into_inner();
+            let name = inner.next().unwrap().as_str().to_string();
+            let expr = process_expr(inner.next().unwrap());
             Some(Stmt::Let(name, expr))
         }
         Rule::print_stmt => {
@@ -49,15 +49,11 @@ fn process_stmt(pair: pest::iterators::Pair<Rule>) -> Option<Stmt> {
             let condition = process_expr(inner.next().unwrap());
             let if_block = inner.next().unwrap();
             let mut if_body = Vec::new();
-            for p in if_block.into_inner() {
-                if let Some(s) = process_stmt(p) { if_body.push(s); }
-            }
+            for p in if_block.into_inner() { if let Some(s) = process_stmt(p) { if_body.push(s); } }
             let mut else_body = None;
             if let Some(else_block) = inner.next() {
                 let mut e_body = Vec::new();
-                for p in else_block.into_inner() {
-                    if let Some(s) = process_stmt(p) { e_body.push(s); }
-                }
+                for p in else_block.into_inner() { if let Some(s) = process_stmt(p) { e_body.push(s); } }
                 else_body = Some(e_body);
             }
             Some(Stmt::If(condition, if_body, else_body))
@@ -67,9 +63,7 @@ fn process_stmt(pair: pest::iterators::Pair<Rule>) -> Option<Stmt> {
             let condition = process_expr(inner.next().unwrap());
             let block = inner.next().unwrap();
             let mut body = Vec::new();
-            for p in block.into_inner() {
-                if let Some(s) = process_stmt(p) { body.push(s); }
-            }
+            for p in block.into_inner() { if let Some(s) = process_stmt(p) { body.push(s); } }
             Some(Stmt::While(condition, body))
         }
         Rule::fun_decl => {
@@ -78,7 +72,6 @@ fn process_stmt(pair: pest::iterators::Pair<Rule>) -> Option<Stmt> {
             let mut params = Vec::new();
             let mut return_type = None;
             let mut block_pair = None;
-
             for part in inner {
                 match part.as_rule() {
                     Rule::parameter_list => params = part.into_inner().map(|p| p.as_str().to_string()).collect(),
@@ -157,9 +150,9 @@ fn process_primary_expr(pair: pest::iterators::Pair<Rule>) -> Expr {
         Rule::string => Expr::String(inner.as_str().replace("\"", "")),
         Rule::number => Expr::Number(inner.as_str().parse().unwrap()),
         Rule::boolean => Expr::Boolean(inner.as_str() == "true"),
-        Rule::input_expr => Expr::Input, // <--- NUEVO
+        Rule::input_expr => Expr::Input,
+        Rule::expression => process_expr(inner), // Para los paréntesis
         Rule::identifier => Expr::Identifier(inner.as_str().to_string()),
-        Rule::comp_expr => process_expr(inner),
         Rule::call_expr => {
             let mut inner_call = inner.into_inner();
             let name = inner_call.next().unwrap().as_str().to_string();

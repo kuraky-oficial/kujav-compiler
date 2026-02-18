@@ -1,5 +1,4 @@
 // src/parser/ast.rs
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum Expr {
     Number(i32),
@@ -8,10 +7,9 @@ pub enum Expr {
     Identifier(String),
     Binary(Box<Expr>, String, Box<Expr>),
     Call(String, Vec<Expr>),
-    Input, // <--- NUEVO: Representa la lectura de teclado
+    Input, 
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub enum Stmt {
     Let(String, Expr),
