@@ -9,15 +9,14 @@ parameter_list = { identifier ~ ("," ~ identifier)* }
 statement = { print_stmt | let_decl }
 print_stmt = { "print" ~ "(" ~ expression ~ ")" }
 
-// Nivel 1: Sumas y Restas (Menor precedencia)
+// Precedencia: Suma y Resta
 expression = { term ~ (add_op ~ term)* }
 add_op     = { "+" | "-" }
 
-// Nivel 2: Multiplicaciones (Mayor precedencia)
+// Precedencia: Multiplicación y División
 term   = { factor ~ (mul_op ~ factor)* }
-mul_op = { "*" }
+mul_op = { "*" | "/" }
 
-// Nivel 3: Unidades básicas
 factor = { string | number | identifier }
 
 identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }

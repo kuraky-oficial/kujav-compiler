@@ -46,26 +46,28 @@ fn process_stmt(pair: pest::iterators::Pair<Rule>) -> Option<Stmt> {
 
 fn process_expr(pair: pest::iterators::Pair<Rule>) -> Expr {
     let mut inner = pair.into_inner();
-    let mut expr = process_term(inner.next().unwrap());
+    let left = process_term(inner.next().unwrap());
 
-    while let Some(op_pair) = inner.next() {
+    if let Some(op_pair) = inner.next() {
         let op = op_pair.as_str().to_string();
         let right = process_term(inner.next().unwrap());
-        expr = Expr::Binary(Box::new(expr), op, Box::new(right));
+        Expr::Binary(Box::new(left), op, Box::new(right))
+    } else {
+        left
     }
-    expr
 }
 
 fn process_term(pair: pest::iterators::Pair<Rule>) -> Expr {
     let mut inner = pair.into_inner();
-    let mut expr = process_factor(inner.next().unwrap());
+    let left = process_factor(inner.next().unwrap());
 
-    while let Some(op_pair) = inner.next() {
+    if let Some(op_pair) = inner.next() {
         let op = op_pair.as_str().to_string();
         let right = process_factor(inner.next().unwrap());
-        expr = Expr::Binary(Box::new(expr), op, Box::new(right));
+        Expr::Binary(Box::new(left), op, Box::new(right))
+    } else {
+        left
     }
-    expr
 }
 
 fn process_factor(pair: pest::iterators::Pair<Rule>) -> Expr {
@@ -74,6 +76,6 @@ fn process_factor(pair: pest::iterators::Pair<Rule>) -> Expr {
         Rule::string => Expr::String(inner.as_str().replace("\"", "")),
         Rule::number => Expr::Number(inner.as_str().parse().unwrap()),
         Rule::identifier => Expr::Identifier(inner.as_str().to_string()),
-        _ => unreachable!(),
+        _ => unreachable!("Regla no esperada: {:?}", inner.as_rule()),
     }
 }

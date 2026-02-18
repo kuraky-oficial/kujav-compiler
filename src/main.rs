@@ -9,8 +9,9 @@ use std::io::Write;
 
 fn main() -> std::io::Result<()> {
     let source_code = r#"
-        let resultado = 10 + 5 * 2
-        print(resultado)
+        let x = 20
+        let y = 10
+        print(x + y / 2)
     "#;
 
     println!("🔨 Parseando código Kujav...");
@@ -49,7 +50,6 @@ fn main() -> std::io::Result<()> {
     let attr_len: u32 = 12 + kujav_compiler.bytecode.len() as u32;
     file.write_all(&attr_len.to_be_bytes())?;
     
-    // CORRECCIÓN: Aumentamos max_stack a 4 para evitar Operand stack overflow
     file.write_all(&[0x00, 0x04])?; // max_stack
     file.write_all(&(kujav_compiler.next_slot as u16).to_be_bytes())?; // max_locals
     

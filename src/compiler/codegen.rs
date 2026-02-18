@@ -29,11 +29,13 @@ impl Compiler {
                 self.variables.insert(name.clone(), slot);
                 self.next_slot += 1;
 
+                // CORRECCIÓN DE TIPOS: Todo convertido a String para evitar el error E0308
                 let type_tag = match &expr {
-                    Expr::String(_) => "Ljava/lang/String;",
-                    _ => "I", 
+                    Expr::Binary(_, _, _) | Expr::Number(_) => "I".to_string(),
+                    Expr::String(_) => "Ljava/lang/String;".to_string(),
+                    Expr::Identifier(n) => self.variable_types.get(n).cloned().unwrap_or_else(|| "I".to_string()),
                 };
-                self.variable_types.insert(name.clone(), type_tag.to_string());
+                self.variable_types.insert(name.clone(), type_tag.clone());
 
                 self.compile_expression(expr);
                 
@@ -45,12 +47,12 @@ impl Compiler {
                 self.bytecode.push(slot);
             }
             Stmt::Print(expr) => {
-                let sys_name = self.cp.add_utf8("java/lang/System");
-                let sys_cls = self.cp.add_class(sys_name);
-                let out_name = self.cp.add_utf8("out");
-                let out_type = self.cp.add_utf8("Ljava/io/PrintStream;");
-                let out_nt = self.cp.add_name_and_type(out_name, out_type);
-                let field_out = self.cp.add_field_ref(sys_cls, out_nt);
+                let sys_n = self.cp.add_utf8("java/lang/System");
+                let sys_c = self.cp.add_class(sys_n);
+                let out_n = self.cp.add_utf8("out");
+                let out_t = self.cp.add_utf8("Ljava/io/PrintStream;");
+                let out_nt = self.cp.add_name_and_type(out_n, out_t);
+                let field_out = self.cp.add_field_ref(sys_c, out_nt);
 
                 self.bytecode.push(0xB2); // getstatic
                 self.bytecode.extend_from_slice(&field_out.to_be_bytes());
@@ -66,12 +68,14 @@ impl Compiler {
 
                 self.compile_expression(expr);
 
-                let ps_name = self.cp.add_utf8("java/io/PrintStream");
-                let ps_cls = self.cp.add_class(ps_name);
+                let ps_n = self.cp.add_utf8("java/io/PrintStream");
+                let ps_c = self.cp.add_class(ps_n);
+                
+                // CORRECCIÓN: pr_name definida correctamente para evitar el error E0425
                 let pr_name = self.cp.add_utf8("println");
-                let pr_type = self.cp.add_utf8(sig);
-                let pr_nt = self.cp.add_name_and_type(pr_name, pr_type);
-                let method_println = self.cp.add_method_ref(ps_cls, pr_nt);
+                let pr_t = self.cp.add_utf8(sig);
+                let pr_nt = self.cp.add_name_and_type(pr_name, pr_t);
+                let method_println = self.cp.add_method_ref(ps_c, pr_nt);
 
                 self.bytecode.push(0xB6); // invokevirtual
                 self.bytecode.extend_from_slice(&method_println.to_be_bytes());
@@ -106,6 +110,7 @@ impl Compiler {
                     "+" => self.bytecode.push(0x60), // iadd
                     "-" => self.bytecode.push(0x64), // isub
                     "*" => self.bytecode.push(0x68), // imul
+                    "/" => self.bytecode.push(0x6C), // idiv
                     _ => {}
                 }
             }
