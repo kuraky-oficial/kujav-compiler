@@ -11,7 +11,7 @@ pub fn read_jar(path: &str) -> Result<JarMetadata, String> {
     let mut class_names = Vec::new();
 
     for i in 0..archive.len() {
-        let mut file = archive.by_index(i).unwrap();
+        let file = archive.by_index(i).unwrap(); // <--- Quita el 'mut' aquí
         if file.name().ends_with(".class") {
             // Guardamos el nombre de la clase (quitando el .class)
             let name = file.name().replace(".class", "");
