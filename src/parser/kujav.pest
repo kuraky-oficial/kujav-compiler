@@ -2,26 +2,32 @@
 program = { SOI ~ (declaration | statement)* ~ EOI }
 
 declaration = { fun_decl | let_decl }
-let_decl = { "let" ~ identifier ~ "=" ~ expression }
-fun_decl = { "fun" ~ identifier ~ "(" ~ parameter_list? ~ ")" ~ "{" ~ statement* ~ "}" }
+let_decl    = { "let" ~ identifier ~ "=" ~ expression }
+fun_decl    = { "fun" ~ identifier ~ "(" ~ parameter_list? ~ ")" ~ "{" ~ (declaration | statement)* ~ "}" }
 
 parameter_list = { identifier ~ ("," ~ identifier)* }
-statement = { print_stmt | let_decl }
-print_stmt = { "print" ~ "(" ~ expression ~ ")" }
 
-// Precedencia: Suma y Resta
-expression = { term ~ (add_op ~ term)* }
-add_op     = { "+" | "-" }
+// Estilo Lua: print sin paréntesis
+statement = { if_stmt | print_stmt | let_decl }
+print_stmt = { "print" ~ expression }
 
-// Precedencia: Multiplicación y División
-term   = { factor ~ (mul_op ~ factor)* }
+if_stmt = { "if" ~ expression ~ "{" ~ (declaration | statement)* ~ "}" }
+
+// Niveles de precedencia para evitar el error 'primary'
+expression = { term ~ (comp_op ~ term)* }
+comp_op    = { "==" | "<" | ">" }
+
+term   = { factor ~ (add_op ~ factor)* }
+add_op = { "+" | "-" }
+
+factor = { primary ~ (mul_op ~ primary)* }
 mul_op = { "*" | "/" }
 
-factor = { string | number | identifier }
+primary = { string | number | identifier }
 
 identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 number     = @{ ASCII_DIGIT+ }
 string     = { "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
 
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
-COMMENT    = _{ "//" ~ (!"\n" ~ ANY)* }
+COMMENT    = _{ "--" ~ (!"\n" ~ ANY)* }

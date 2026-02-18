@@ -1,4 +1,3 @@
-// src/parser/mod.rs
 pub mod ast; 
 use pest::Parser;
 use pest_derive::Parser as PestParser;
@@ -40,42 +39,64 @@ fn process_stmt(pair: pest::iterators::Pair<Rule>) -> Option<Stmt> {
             let expr = process_expr(pair.into_inner().next().unwrap());
             Some(Stmt::Print(expr))
         }
+        Rule::if_stmt => {
+            let mut inner = pair.into_inner();
+            let condition = process_expr(inner.next().unwrap());
+            let mut body = Vec::new();
+            for p in inner {
+                if let Some(s) = process_stmt(p) {
+                    body.push(s);
+                }
+            }
+            Some(Stmt::If(condition, body))
+        }
+        Rule::statement | Rule::declaration => {
+            let inner = pair.into_inner().next().unwrap();
+            process_stmt(inner)
+        }
         _ => None,
     }
 }
 
 fn process_expr(pair: pest::iterators::Pair<Rule>) -> Expr {
     let mut inner = pair.into_inner();
-    let left = process_term(inner.next().unwrap());
-
-    if let Some(op_pair) = inner.next() {
+    let mut expr = process_term(inner.next().unwrap());
+    while let Some(op_pair) = inner.next() {
         let op = op_pair.as_str().to_string();
         let right = process_term(inner.next().unwrap());
-        Expr::Binary(Box::new(left), op, Box::new(right))
-    } else {
-        left
+        expr = Expr::Binary(Box::new(expr), op, Box::new(right));
     }
+    expr
 }
 
 fn process_term(pair: pest::iterators::Pair<Rule>) -> Expr {
     let mut inner = pair.into_inner();
-    let left = process_factor(inner.next().unwrap());
-
-    if let Some(op_pair) = inner.next() {
+    let mut expr = process_factor(inner.next().unwrap());
+    while let Some(op_pair) = inner.next() {
         let op = op_pair.as_str().to_string();
         let right = process_factor(inner.next().unwrap());
-        Expr::Binary(Box::new(left), op, Box::new(right))
-    } else {
-        left
+        expr = Expr::Binary(Box::new(expr), op, Box::new(right));
     }
+    expr
 }
 
 fn process_factor(pair: pest::iterators::Pair<Rule>) -> Expr {
-    let inner = pair.into_inner().next().expect("Factor vacío");
+    let mut inner = pair.into_inner();
+    let mut expr = process_primary_expr(inner.next().unwrap());
+    while let Some(op_pair) = inner.next() {
+        let op = op_pair.as_str().to_string();
+        let right = process_primary_expr(inner.next().unwrap());
+        expr = Expr::Binary(Box::new(expr), op, Box::new(right));
+    }
+    expr
+}
+
+fn process_primary_expr(pair: pest::iterators::Pair<Rule>) -> Expr {
+    let inner = pair.into_inner().next().expect("Primary vacío");
     match inner.as_rule() {
         Rule::string => Expr::String(inner.as_str().replace("\"", "")),
         Rule::number => Expr::Number(inner.as_str().parse().unwrap()),
         Rule::identifier => Expr::Identifier(inner.as_str().to_string()),
-        _ => unreachable!("Regla no esperada: {:?}", inner.as_rule()),
+        _ => unreachable!("Error en primary: {:?}", inner.as_rule()),
     }
 }
