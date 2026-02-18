@@ -1,5 +1,6 @@
 // src/parser/ast.rs
 #[allow(dead_code)]
+#[derive(Debug, Clone)]
 pub enum Expr {
     Number(i32),
     String(String),
@@ -8,9 +9,11 @@ pub enum Expr {
 }
 
 #[allow(dead_code)]
+#[derive(Debug, Clone)]
 pub enum Stmt {
     Let(String, Expr),
     Print(Expr),
-    If(Expr, Vec<Stmt>, Option<Vec<Stmt>>), // Cuerpo del IF y opcionalmente el del ELSE
+    If(Expr, Vec<Stmt>, Option<Vec<Stmt>>),
+    While(Expr, Vec<Stmt>), // Bucle While
     Function(String, Vec<String>, Vec<Stmt>),
 }

@@ -43,15 +43,11 @@ fn process_stmt(pair: pest::iterators::Pair<Rule>) -> Option<Stmt> {
         Rule::if_stmt => {
             let mut inner = inner_pair.into_inner();
             let condition = process_expr(inner.next().unwrap());
-            
-            // Cuerpo del IF
             let if_block = inner.next().unwrap();
             let mut if_body = Vec::new();
             for p in if_block.into_inner() {
                 if let Some(s) = process_stmt(p) { if_body.push(s); }
             }
-            
-            // Cuerpo del ELSE (Opcional)
             let mut else_body = None;
             if let Some(else_block) = inner.next() {
                 let mut e_body = Vec::new();
@@ -60,8 +56,17 @@ fn process_stmt(pair: pest::iterators::Pair<Rule>) -> Option<Stmt> {
                 }
                 else_body = Some(e_body);
             }
-            
             Some(Stmt::If(condition, if_body, else_body))
+        }
+        Rule::while_stmt => {
+            let mut inner = inner_pair.into_inner();
+            let condition = process_expr(inner.next().unwrap());
+            let block = inner.next().unwrap();
+            let mut body = Vec::new();
+            for p in block.into_inner() {
+                if let Some(s) = process_stmt(p) { body.push(s); }
+            }
+            Some(Stmt::While(condition, body))
         }
         _ => None,
     }

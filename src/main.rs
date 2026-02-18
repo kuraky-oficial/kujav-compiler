@@ -9,13 +9,12 @@ use std::io::Write;
 
 fn main() -> std::io::Result<()> {
     let source_code = r#"
-        let x = 20
-        if x == 10 {
-            print "Es diez!"
-        } else {
-            print "No es diez, es otro numero"
+        let x = 5
+        while x > 0 {
+            print x
+            let x = x - 1
         }
-        print x * 5 / 2
+        print "¡Bucle terminado!"
     "#;
 
     println!("🔨 Parseando código Kujav...");
@@ -36,8 +35,8 @@ fn main() -> std::io::Result<()> {
     kujav_compiler.bytecode.push(0xB1); 
 
     let mut file = fs::File::create("Salida.class")?;
-    // Usamos la versión 50.0 (Java 6) para evitar errores de StackMapTable
-    file.write_all(&[0xCA, 0xFE, 0xBA, 0xBE, 0x00, 0x00, 0x00, 0x32])?;
+    // FIX: Usamos 0x31 (Java 5) para máxima compatibilidad con saltos
+    file.write_all(&[0xCA, 0xFE, 0xBA, 0xBE, 0x00, 0x00, 0x00, 0x31])?;
     file.write_all(&kujav_compiler.cp.to_bytes())?;
     file.write_all(&[0x00, 0x21])?;
     file.write_all(&this_c.to_be_bytes())?; 
@@ -50,7 +49,7 @@ fn main() -> std::io::Result<()> {
     file.write_all(&c_a.to_be_bytes())?; 
     let attr_len: u32 = 12 + kujav_compiler.bytecode.len() as u32;
     file.write_all(&attr_len.to_be_bytes())?;
-    file.write_all(&[0x00, 0x0A])?; // max_stack
+    file.write_all(&[0x00, 0x0F])?; // max_stack
     file.write_all(&(kujav_compiler.next_slot as u16).to_be_bytes())?; 
     file.write_all(&(kujav_compiler.bytecode.len() as u32).to_be_bytes())?;
     file.write_all(&kujav_compiler.bytecode)?;

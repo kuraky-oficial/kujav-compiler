@@ -8,14 +8,15 @@ fun_decl    = { "fun" ~ identifier ~ "(" ~ parameter_list? ~ ")" ~ "{" ~ block ~
 parameter_list = { identifier ~ ("," ~ identifier)* }
 
 // Estilo Lua: print sin paréntesis
-statement = { if_stmt | print_stmt | let_decl }
+statement = { while_stmt | if_stmt | print_stmt | let_decl }
 print_stmt = { "print" ~ expression }
 
-// Soporte para IF-ELSE
-if_stmt = { "if" ~ expression ~ "{" ~ block ~ "}" ~ ("else" ~ "{" ~ block ~ "}")? }
-block   = { (declaration | statement)* }
+// Estructuras de control
+if_stmt    = { "if" ~ expression ~ "{" ~ block ~ "}" ~ ("else" ~ "{" ~ block ~ "}")? }
+while_stmt = { "while" ~ expression ~ "{" ~ block ~ "}" }
+block      = { (declaration | statement)* }
 
-// Expresiones y Aritmética
+// Expresiones y Comparadores
 expression = { term ~ (comp_op ~ term)* }
 comp_op    = { "==" | "<" | ">" }
 
