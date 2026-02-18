@@ -3,8 +3,9 @@ mod core; mod reader; mod parser; mod compiler;
 use std::fs; use std::io::Write;
 
 fn main() -> std::io::Result<()> {
+    // Definimos explícitamente que cuadrado devuelve un entero (: I)
     let source_code = r#"
-        fun cuadrado(n) {
+        fun cuadrado(n): I {
             return n * n
         }
 
@@ -19,6 +20,7 @@ fn main() -> std::io::Result<()> {
     let ast = parser::parse_to_ast(source_code);
     let mut kujav = compiler::codegen::Compiler::new();
     
+    // Configuración básica de la clase JVM
     let cls_u = kujav.cp.add_utf8("Salida");
     let this_c = kujav.cp.add_class(cls_u);
     let obj_u = kujav.cp.add_utf8("java/lang/Object");
@@ -40,7 +42,7 @@ fn main() -> std::io::Result<()> {
     let num_methods = (1 + kujav.methods.len()) as u16;
     file.write_all(&num_methods.to_be_bytes())?;
 
-    // Main
+    // Método main
     file.write_all(&[0x00, 0x09])?; 
     file.write_all(&m_n.to_be_bytes())?; file.write_all(&m_t.to_be_bytes())?;
     file.write_all(&[0x00, 0x01])?; file.write_all(&c_a.to_be_bytes())?;
@@ -51,7 +53,7 @@ fn main() -> std::io::Result<()> {
     file.write_all(&kujav.current_bytecode)?;
     file.write_all(&[0x00, 0x00, 0x00, 0x00])?;
 
-    // Funciones
+    // Métodos (funciones de Kujav)
     for m in &kujav.methods {
         file.write_all(&[0x00, 0x09])?; 
         file.write_all(&m.name_idx.to_be_bytes())?; file.write_all(&m.sig_idx.to_be_bytes())?;

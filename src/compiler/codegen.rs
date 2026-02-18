@@ -34,11 +34,13 @@ impl Compiler {
     pub fn compile_statement(&mut self, stmt: Stmt) {
         match stmt {
             Stmt::Function(name, params, body, return_type) => {
+                // CORRECCIÓN: Si no se especifica, asumimos "I" para que el return funcione
                 let ret_sig = match return_type.as_deref() {
-                    Some("I") => "I",
                     Some("S") => "Ljava/lang/String;",
-                    _ => "V",
+                    Some("V") => "V",
+                    _ => "I", 
                 };
+                
                 let mut param_sigs = String::new();
                 for _ in &params { param_sigs.push('I'); }
                 let sig = format!("({}){}", param_sigs, ret_sig);
@@ -59,6 +61,8 @@ impl Compiler {
                 }
 
                 for s in body { self.compile_statement(s); }
+                
+                // Si al final no hubo return y es void, lo agregamos
                 if ret_sig == "V" { self.current_bytecode.push(0xB1); }
 
                 self.methods.push(MethodInfo {
@@ -81,9 +85,21 @@ impl Compiler {
             }
 
             Stmt::Call(name, args) => {
-                self.compile_expression(Expr::Call(name, args));
-                // Si es un statement, pero la función devolvió algo (I), debemos quitarlo del stack
-                // Para simplificar esta versión, asumimos que las llamadas como statements no dejan basura
+                // Si se llama como instrucción suelta, asumimos firma void ()V
+                for arg in &args { self.compile_expression(arg.clone()); }
+                let cls_u = self.cp.add_utf8("Salida");
+                let cls = self.cp.add_class(cls_u);
+                let n_u = self.cp.add_utf8(&name);
+                
+                let mut p_sigs = String::new();
+                for _ in 0..args.len() { p_sigs.push('I'); }
+                let sig = format!("({})V", p_sigs); 
+                
+                let s_u = self.cp.add_utf8(&sig);
+                let nt = self.cp.add_name_and_type(n_u, s_u);
+                let m_ref = self.cp.add_method_ref(cls, nt);
+                self.current_bytecode.push(0xB8); 
+                self.current_bytecode.extend_from_slice(&m_ref.to_be_bytes());
             }
 
             Stmt::Let(name, expr) => {
@@ -197,16 +213,14 @@ impl Compiler {
                 }
             }
             Expr::Call(name, args) => {
-                // USAMOS &args para evitar el error de movimiento
-                for arg in &args { 
-                    self.compile_expression(arg.clone()); 
-                }
+                for arg in &args { self.compile_expression(arg.clone()); }
                 let cls_u = self.cp.add_utf8("Salida");
                 let cls = self.cp.add_class(cls_u);
                 let n_u = self.cp.add_utf8(&name);
                 
                 let mut p_sigs = String::new();
                 for _ in 0..args.len() { p_sigs.push('I'); }
+                // Si se usa como EXPRESIÓN, la firma DEBE terminar en I
                 let sig = format!("({})I", p_sigs); 
                 
                 let s_u = self.cp.add_utf8(&sig);
