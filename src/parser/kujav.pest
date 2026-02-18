@@ -27,9 +27,14 @@ add_op     = { "+" | "-" }
 factor     = { primary ~ (mul_op ~ primary)* }
 mul_op     = { "*" | "/" }
 
-primary    = { string | number | boolean | input_expr | "(" ~ expression ~ ")" | call_expr | identifier }
+primary = { string | number | boolean | input_expr | array_lit | array_access | "(" ~ expression ~ ")" | call_expr | identifier }
 boolean    = { "true" | "false" }
 input_expr = { "input" ~ "(" ~ ")" }
+// Nueva regla para literales: [1, 2, 3]
+array_lit = { "[" ~ (expression ~ ("," ~ expression)*)? ~ "]" }
+
+// Nueva regla para acceso: lista[5]
+array_access = { identifier ~ "[" ~ expression ~ "]" }
 
 identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 number     = @{ ASCII_DIGIT+ }

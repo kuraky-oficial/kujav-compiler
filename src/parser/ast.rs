@@ -8,6 +8,8 @@ pub enum Expr {
     Binary(Box<Expr>, String, Box<Expr>),
     Call(String, Vec<Expr>),
     Input,
+    ArrayLiteral(Vec<Expr>),
+    ArrayAccess(Box<Expr>, Box<Expr>),
 }
 
 #[derive(Debug, Clone)]

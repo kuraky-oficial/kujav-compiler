@@ -58,27 +58,34 @@ impl Compiler {
             }
             Stmt::Print(expr) => {
                 let is_str = self.is_string_expr(&expr);
-                let sys_c = self.cp.add_class(self.cp.add_utf8("java/lang/System"));
-                let o_nt = self.cp.add_name_and_type(self.cp.add_utf8("out"), self.cp.add_utf8("Ljava/io/PrintStream;"));
+                
+                let sys_n = self.cp.add_utf8("java/lang/System");
+                let sys_c = self.cp.add_class(sys_n);
+                let out_n = self.cp.add_utf8("out");
+                let out_s = self.cp.add_utf8("Ljava/io/PrintStream;");
+                let o_nt = self.cp.add_name_and_type(out_n, out_s);
                 let f_out = self.cp.add_field_ref(sys_c, o_nt);
+                
                 self.current_bytecode.push(0xB2); 
                 self.current_bytecode.extend_from_slice(&f_out.to_be_bytes());
 
                 self.compile_expression(expr);
 
                 let sig = if is_str { "(Ljava/lang/String;)V" } else { "(I)V" };
-                let ps_c = self.cp.add_class(self.cp.add_utf8("java/io/PrintStream"));
-                let pr_nt = self.cp.add_name_and_type(self.cp.add_utf8("println"), self.cp.add_utf8(sig));
+                let ps_n = self.cp.add_utf8("java/io/PrintStream");
+                let ps_c = self.cp.add_class(ps_n);
+                let pr_n = self.cp.add_utf8("println");
+                let pr_s = self.cp.add_utf8(sig);
+                let pr_nt = self.cp.add_name_and_type(pr_n, pr_s);
                 let m_pr = self.cp.add_method_ref(ps_c, pr_nt);
+                
                 self.current_bytecode.push(0xB6); 
                 self.current_bytecode.extend_from_slice(&m_pr.to_be_bytes());
             }
             Stmt::Call(name, args) => {
-                // Reusamos la lógica de expresiones para la llamada
                 use crate::parser::ast::Expr;
                 self.compile_expression(Expr::Call(name, args));
-                // Si la función devuelve I pero se llamó como sentencia, quitamos el valor del stack
-                self.current_bytecode.push(0x57); // pop
+                self.current_bytecode.push(0x57); // pop (si la función devuelve algo)
             }
             Stmt::Return(expr) => {
                 let is_str = self.is_string_expr(&expr);
@@ -122,6 +129,26 @@ impl Compiler {
                 let off_end = (self.current_bytecode.len() - ifeq_pos) as i16;
                 self.current_bytecode[jump_to_end_idx..jump_to_end_idx+2].copy_from_slice(&off_end.to_be_bytes());
             }
+            Expr::ArrayLiteral(elements) => {
+    if elements.is_empty() { return Ok(KType::Array(Box::new(KType::Int))); }
+    let first_type = self.check_expr(&elements[0])?;
+    // Validamos que todos los elementos sean del mismo tipo
+    for e in elements {
+        if self.check_expr(e)? != first_type {
+            return Err("Todos los elementos del arreglo deben ser del mismo tipo".into());
+        }
+    }
+    Ok(KType::Array(Box::new(first_type)))
+}
+Expr::ArrayAccess(name, index_expr) => {
+    if self.check_expr(index_expr)? != KType::Int {
+        return Err("El índice del arreglo debe ser un Int".into());
+    }
+    match self.symbols.get(name) {
+        Some(KType::Array(inner)) => Ok(*inner.clone()),
+        _ => Err(format!("'{}' no es un arreglo", name)),
+    }
+}
         }
     }
 }

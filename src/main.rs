@@ -6,10 +6,9 @@ use crate::compiler::semantics::SemanticAnalyzer;
 
 fn main() -> std::io::Result<()> {
     let source_code = r#"
-        print "--- Kujav v2: Tipos y Modulos ---"
-        let n = input()
-        let mensaje = "El doble es: " + (n * 2)
-        print mensaje
+        let lista = [10, 20, 30]
+let primer_valor = lista[0]
+print "El primer valor es: " + primer_valor
     "#;
 
     println!("🔨 Compilando Kujav...");
