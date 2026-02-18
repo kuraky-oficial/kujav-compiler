@@ -151,7 +151,7 @@ fn process_primary_expr(pair: pest::iterators::Pair<Rule>) -> Expr {
         Rule::number => Expr::Number(inner.as_str().parse().unwrap()),
         Rule::boolean => Expr::Boolean(inner.as_str() == "true"),
         Rule::input_expr => Expr::Input,
-        Rule::expression => process_expr(inner), // Para los paréntesis
+        Rule::expression => process_expr(inner), 
         Rule::identifier => Expr::Identifier(inner.as_str().to_string()),
         Rule::call_expr => {
             let mut inner_call = inner.into_inner();

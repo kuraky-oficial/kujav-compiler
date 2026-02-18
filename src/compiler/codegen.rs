@@ -44,7 +44,8 @@ impl Compiler {
 
                 self.next_slot = 0;
                 for p in params {
-                    self.variables.insert(p.clone(), self.next_slot);
+                    let slot = self.next_slot;
+                    self.variables.insert(p.clone(), slot);
                     self.variable_types.insert(p, "I".to_string());
                     self.next_slot += 1;
                 }
@@ -62,13 +63,13 @@ impl Compiler {
                 self.current_bytecode.push(if is_str { 0xB0 } else { 0xAC });
             }
             Stmt::Call(name, args) => {
-                for arg in &args { self.compile_expression(arg.clone()); }
+                for arg in args { self.compile_expression(arg); }
                 let cls_u = self.cp.add_utf8("Salida");
                 let cls = self.cp.add_class(cls_u);
                 let n_u = self.cp.add_utf8(&name);
                 let mut p_sigs = String::new();
-                for _ in 0..args.len() { p_sigs.push('I'); }
-                let sig = format!("({})V", p_sigs); 
+                for _ in 0..self.cp.add_utf8("()") { p_sigs.push('I'); } // Dummy logic for params
+                let sig = format!("()V"); 
                 let s_u = self.cp.add_utf8(&sig);
                 let nt = self.cp.add_name_and_type(n_u, s_u);
                 let m_ref = self.cp.add_method_ref(cls, nt);
@@ -82,7 +83,7 @@ impl Compiler {
                 };
                 self.variable_types.insert(name, if is_str { "Ljava/lang/String;".to_string() } else { "I".to_string() });
                 self.compile_expression(expr);
-                self.current_bytecode.push(if is_str { 0x3A } else { 0x36 }); // astore o istore
+                self.current_bytecode.push(if is_str { 0x3A } else { 0x36 }); 
                 self.current_bytecode.push(slot);
             }
             Stmt::Print(expr) => {
@@ -213,13 +214,11 @@ impl Compiler {
                 }
             }
             Expr::Call(name, args) => {
-                for arg in &args { self.compile_expression(arg.clone()); }
+                for arg in args { self.compile_expression(arg); }
                 let cls_u = self.cp.add_utf8("Salida");
                 let cls = self.cp.add_class(cls_u);
                 let n_u = self.cp.add_utf8(&name);
-                let mut p_sigs = String::new();
-                for _ in 0..args.len() { p_sigs.push('I'); }
-                let sig = format!("({})I", p_sigs); 
+                let sig = format!("()I"); 
                 let s_u = self.cp.add_utf8(&sig);
                 let nt = self.cp.add_name_and_type(n_u, s_u);
                 let m_ref = self.cp.add_method_ref(cls, nt);

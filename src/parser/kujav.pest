@@ -11,33 +11,29 @@ statement = { while_stmt | if_stmt | print_stmt | call_stmt | let_decl | return_
 
 print_stmt = { "print" ~ expression }
 return_stmt = { "return" ~ expression }
-call_stmt  = { call_expr } 
+call_stmt  = { call_expr }
 call_expr  = { identifier ~ "(" ~ argument_list? ~ ")" }
 
 if_stmt    = { "if" ~ expression ~ "{" ~ block ~ "}" ~ ("else" ~ "{" ~ block ~ "}")? }
 while_stmt = { "while" ~ expression ~ "{" ~ block ~ "}" }
 block      = { (declaration | statement)* }
 
-// Nivel superior: Operadores lógicos (and, or)
 expression = { comp_expr ~ (logic_op ~ comp_expr)* }
 logic_op   = { "and" | "or" }
-
-// Nivel medio: Comparaciones (==, <, >)
 comp_expr  = { term ~ (comp_op ~ term)* }
 comp_op    = { "==" | "<" | ">" }
-
 term       = { factor ~ (add_op ~ factor)* }
 add_op     = { "+" | "-" }
 factor     = { primary ~ (mul_op ~ primary)* }
 mul_op     = { "*" | "/" }
 
-// Incluimos 'boolean' en primary
-primary = { string | number | boolean | input_expr | call_expr | identifier }
-input_expr = { "input" ~ "(" ~ ")" }
+primary    = { string | number | boolean | input_expr | "(" ~ expression ~ ")" | call_expr | identifier }
 boolean    = { "true" | "false" }
+input_expr = { "input" ~ "(" ~ ")" }
 
 identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 number     = @{ ASCII_DIGIT+ }
-string     = { "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+string     = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+
 WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
 COMMENT    = _{ "--" ~ (!"\n" ~ ANY)* }

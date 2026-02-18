@@ -7,7 +7,7 @@ pub enum Expr {
     Identifier(String),
     Binary(Box<Expr>, String, Box<Expr>),
     Call(String, Vec<Expr>),
-    Input, 
+    Input,
 }
 
 #[derive(Debug, Clone)]
@@ -16,7 +16,7 @@ pub enum Stmt {
     Print(Expr),
     If(Expr, Vec<Stmt>, Option<Vec<Stmt>>),
     While(Expr, Vec<Stmt>),
-    Function(String, Vec<String>, Vec<Stmt>, Option<String>), 
+    Function(String, Vec<String>, Vec<Stmt>, Option<String>),
     Call(String, Vec<Expr>),
     Return(Expr),
 }
