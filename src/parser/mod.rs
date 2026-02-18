@@ -17,15 +17,7 @@ pub fn parse_to_ast(input: &str) -> Vec<Stmt> {
 
     for pair in pairs.into_inner() {
         match pair.as_rule() {
-            // Manejamos declaraciones (como let)
-            Rule::declaration => {
-                let inner = pair.into_inner().next().unwrap();
-                if let Some(stmt) = process_stmt(inner) {
-                    statements.push(stmt);
-                }
-            }
-            // Manejamos sentencias directas (como print)
-            Rule::statement => {
+            Rule::declaration | Rule::statement => {
                 let inner = pair.into_inner().next().unwrap();
                 if let Some(stmt) = process_stmt(inner) {
                     statements.push(stmt);
@@ -37,19 +29,28 @@ pub fn parse_to_ast(input: &str) -> Vec<Stmt> {
     statements
 }
 
-// Función auxiliar para no repetir código
 fn process_stmt(pair: pest::iterators::Pair<Rule>) -> Option<Stmt> {
     match pair.as_rule() {
         Rule::let_decl => {
             let mut inner_rules = pair.into_inner();
             let name = inner_rules.next().unwrap().as_str().to_string();
-            let value_str = inner_rules.next().unwrap().as_str();
-            Some(Stmt::Let(name, Expr::String(value_str.replace("\"", ""))))
+            let expr = process_expr(inner_rules.next().unwrap());
+            Some(Stmt::Let(name, expr))
         }
         Rule::print_stmt => {
-            let content = pair.into_inner().next().unwrap().as_str();
-            Some(Stmt::Print(Expr::String(content.replace("\"", ""))))
+            let expr = process_expr(pair.into_inner().next().unwrap());
+            Some(Stmt::Print(expr))
         }
         _ => None,
+    }
+}
+
+fn process_expr(pair: pest::iterators::Pair<Rule>) -> Expr {
+    let inner = pair.into_inner().next().unwrap();
+    match inner.as_rule() {
+        Rule::string => Expr::String(inner.as_str().replace("\"", "")),
+        Rule::number => Expr::Number(inner.as_str().parse().unwrap()),
+        Rule::identifier => Expr::Identifier(inner.as_str().to_string()),
+        _ => unreachable!(),
     }
 }

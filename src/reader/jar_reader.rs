@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use std::fs::File;
 use zip::ZipArchive;
 
@@ -11,22 +12,10 @@ pub fn read_jar(path: &str) -> Result<JarMetadata, String> {
     let mut class_names = Vec::new();
 
     for i in 0..archive.len() {
-        let file = archive.by_index(i).unwrap(); // <--- Quita el 'mut' aquí
+        let file = archive.by_index(i).unwrap();
         if file.name().ends_with(".class") {
-            // Guardamos el nombre de la clase (quitando el .class)
-            let name = file.name().replace(".class", "");
-            class_names.push(name);
-            
-            // Aquí es donde usaríamos cafebabe para leer métodos más adelante
-            /*
-            let mut buffer = Vec::new();
-            file.read_to_end(&mut buffer).unwrap();
-            if let Ok(class) = parse_class(&buffer) {
-                // println!("Clase encontrada: {}", class.this_class);
-            }
-            */
+            class_names.push(file.name().replace(".class", ""));
         }
     }
-
     Ok(JarMetadata { class_names })
 }
