@@ -5,17 +5,15 @@ use std::fs; use std::io::Write;
 fn main() -> std::io::Result<()> {
     // Definimos explícitamente que cuadrado devuelve un entero (: I)
     let source_code = r#"
-        fun cuadrado(n): I {
-            return n * n
-        }
-
-        let x = 5
-        let resultado = cuadrado(x)
+        print "--- Calculadora Kujav ---"
+        print "Ingresa un numero:"
+        let n = input()
         
-        print "El cuadrado de 5 es:"
+        let mensaje = "El doble de " + n
+        let resultado = mensaje + " es " + (n * 2)
+        
         print resultado
     "#;
-
     println!("🔨 Compilando Kujav...");
     let ast = parser::parse_to_ast(source_code);
     let mut kujav = compiler::codegen::Compiler::new();

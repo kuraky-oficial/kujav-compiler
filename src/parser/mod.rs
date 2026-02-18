@@ -109,6 +109,17 @@ fn process_stmt(pair: pest::iterators::Pair<Rule>) -> Option<Stmt> {
 
 fn process_expr(pair: pest::iterators::Pair<Rule>) -> Expr {
     let mut inner = pair.into_inner();
+    let mut expr = process_comp_expr(inner.next().unwrap());
+    while let Some(op_pair) = inner.next() {
+        let op = op_pair.as_str().to_string();
+        let right = process_comp_expr(inner.next().unwrap());
+        expr = Expr::Binary(Box::new(expr), op, Box::new(right));
+    }
+    expr
+}
+
+fn process_comp_expr(pair: pest::iterators::Pair<Rule>) -> Expr {
+    let mut inner = pair.into_inner();
     let mut expr = process_term(inner.next().unwrap());
     while let Some(op_pair) = inner.next() {
         let op = op_pair.as_str().to_string();
@@ -145,7 +156,10 @@ fn process_primary_expr(pair: pest::iterators::Pair<Rule>) -> Expr {
     match inner.as_rule() {
         Rule::string => Expr::String(inner.as_str().replace("\"", "")),
         Rule::number => Expr::Number(inner.as_str().parse().unwrap()),
+        Rule::boolean => Expr::Boolean(inner.as_str() == "true"),
+        Rule::input_expr => Expr::Input, // <--- NUEVO
         Rule::identifier => Expr::Identifier(inner.as_str().to_string()),
+        Rule::comp_expr => process_expr(inner),
         Rule::call_expr => {
             let mut inner_call = inner.into_inner();
             let name = inner_call.next().unwrap().as_str().to_string();

@@ -4,9 +4,11 @@
 pub enum Expr {
     Number(i32),
     String(String),
+    Boolean(bool),
     Identifier(String),
     Binary(Box<Expr>, String, Box<Expr>),
-    Call(String, Vec<Expr>), // <--- NUEVO: Llamadas como expresiones
+    Call(String, Vec<Expr>),
+    Input, // <--- NUEVO: Representa la lectura de teclado
 }
 
 #[allow(dead_code)]

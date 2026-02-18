@@ -31,6 +31,19 @@ impl Compiler {
         }
     }
 
+    fn is_string_expr(&self, expr: &Expr) -> bool {
+        match expr {
+            Expr::String(_) => true,
+            Expr::Identifier(name) => {
+                self.variable_types.get(name).map(|t| t.as_str()) == Some("Ljava/lang/String;")
+            }
+            Expr::Binary(l, op, r) => {
+                op == "+" && (self.is_string_expr(l) || self.is_string_expr(r))
+            }
+            _ => false,
+        }
+    }
+
     pub fn compile_statement(&mut self, stmt: Stmt) {
         match stmt {
             Stmt::Function(name, params, body, return_type) => {
@@ -190,7 +203,8 @@ impl Compiler {
 
     fn compile_expression(&mut self, expr: Expr) {
         match expr {
-            Expr::Number(val) => { self.current_bytecode.push(0x10); self.current_bytecode.push(val as u8); }
+           Expr::Number(val) => { self.current_bytecode.push(0x10); self.current_bytecode.push(val as u8); }
+            Expr::Boolean(val) => { self.current_bytecode.push(if val { 0x04 } else { 0x03 }); }
             Expr::String(c) => { 
                 let s_u = self.cp.add_utf8(&c);
                 let s_idx = self.cp.add_string(s_u);
@@ -202,14 +216,67 @@ impl Compiler {
                 self.current_bytecode.push(slot);
             },
             Expr::Binary(l, op, r) => {
-                self.compile_expression(*l); self.compile_expression(*r);
-                match op.as_str() {
-                    "+" => self.current_bytecode.push(0x60), "-" => self.current_bytecode.push(0x64),
-                    "*" => self.current_bytecode.push(0x68), "/" => self.current_bytecode.push(0x6C),
-                    "==" => self.current_bytecode.extend_from_slice(&[0xA0, 0x00, 0x07, 0x04, 0xA7, 0x00, 0x04, 0x03]),
-                    "<"  => self.current_bytecode.extend_from_slice(&[0xA2, 0x00, 0x07, 0x04, 0xA7, 0x00, 0x04, 0x03]),
-                    ">"  => self.current_bytecode.extend_from_slice(&[0xA4, 0x00, 0x07, 0x04, 0xA7, 0x00, 0x04, 0x03]),
-                    _ => {}
+                if op == "+" && (self.is_string_expr(&l) || self.is_string_expr(&r)) {
+                    // --- LÓGICA DE CONCATENACIÓN DE CADENAS ---
+                    let sb_u = self.cp.add_utf8("java/lang/StringBuilder");
+                    let sb_c = self.cp.add_class(sb_u);
+                    
+                    // 1. new StringBuilder
+                    self.current_bytecode.push(0xBB); 
+                    self.current_bytecode.extend_from_slice(&sb_c.to_be_bytes());
+                    self.current_bytecode.push(0x59); // dup
+                    
+                    // 2. <init>()
+                    let init_u = self.cp.add_utf8("<init>");
+                    let init_s = self.cp.add_utf8("()V");
+                    let init_nt = self.cp.add_name_and_type(init_u, init_s);
+                    let m_init = self.cp.add_method_ref(sb_c, init_nt);
+                    self.current_bytecode.push(0xB7); 
+                    self.current_bytecode.extend_from_slice(&m_init.to_be_bytes());
+
+                    // 3. Append L (Izquierda)
+                    let l_is_str = self.is_string_expr(&l);
+                    self.compile_expression(*l);
+                    let app_s = self.cp.add_utf8(if l_is_str { "(Ljava/lang/String;)Ljava/lang/StringBuilder;" } else { "(I)Ljava/lang/StringBuilder;" });
+                    let app_u = self.cp.add_utf8("append");
+                    let app_nt = self.cp.add_name_and_type(app_u, app_s);
+                    let m_app = self.cp.add_method_ref(sb_c, app_nt);
+                    self.current_bytecode.push(0xB6); 
+                    self.current_bytecode.extend_from_slice(&m_app.to_be_bytes());
+
+                    // 4. Append R (Derecha)
+                    let r_is_str = self.is_string_expr(&r);
+                    self.compile_expression(*r);
+                    let app_s_r = self.cp.add_utf8(if r_is_str { "(Ljava/lang/String;)Ljava/lang/StringBuilder;" } else { "(I)Ljava/lang/StringBuilder;" });
+                    let app_nt_r = self.cp.add_name_and_type(app_u, app_s_r);
+                    let m_app_r = self.cp.add_method_ref(sb_c, app_nt_r);
+                    self.current_bytecode.push(0xB6); 
+                    self.current_bytecode.extend_from_slice(&m_app_r.to_be_bytes());
+
+                    // 5. toString()
+                    let ts_u = self.cp.add_utf8("toString");
+                    let ts_s = self.cp.add_utf8("()Ljava/lang/String;");
+                    let ts_nt = self.cp.add_name_and_type(ts_u, ts_s);
+                    let m_ts = self.cp.add_method_ref(sb_c, ts_nt);
+                    self.current_bytecode.push(0xB6); 
+                    self.current_bytecode.extend_from_slice(&m_ts.to_be_bytes());
+
+                } else {
+                    // Operaciones normales (Matemáticas y Lógicas)
+                    self.compile_expression(*l); 
+                    self.compile_expression(*r);
+                    match op.as_str() {
+                        "+" => self.current_bytecode.push(0x60),
+                        "-" => self.current_bytecode.push(0x64),
+                        "*" => self.current_bytecode.push(0x68),
+                        "/" => self.current_bytecode.push(0x6C),
+                        "and" => self.current_bytecode.push(0x7E),
+                        "or"  => self.current_bytecode.push(0x80),
+                        "==" => self.current_bytecode.extend_from_slice(&[0xA0, 0x00, 0x07, 0x04, 0xA7, 0x00, 0x04, 0x03]),
+                        "<"  => self.current_bytecode.extend_from_slice(&[0xA2, 0x00, 0x07, 0x04, 0xA7, 0x00, 0x04, 0x03]),
+                        ">"  => self.current_bytecode.extend_from_slice(&[0xA4, 0x00, 0x07, 0x04, 0xA7, 0x00, 0x04, 0x03]),
+                        _ => {}
+                    }
                 }
             }
             Expr::Call(name, args) => {
@@ -217,17 +284,48 @@ impl Compiler {
                 let cls_u = self.cp.add_utf8("Salida");
                 let cls = self.cp.add_class(cls_u);
                 let n_u = self.cp.add_utf8(&name);
-                
                 let mut p_sigs = String::new();
                 for _ in 0..args.len() { p_sigs.push('I'); }
-                // Si se usa como EXPRESIÓN, la firma DEBE terminar en I
                 let sig = format!("({})I", p_sigs); 
-                
                 let s_u = self.cp.add_utf8(&sig);
                 let nt = self.cp.add_name_and_type(n_u, s_u);
                 let m_ref = self.cp.add_method_ref(cls, nt);
                 self.current_bytecode.push(0xB8); 
                 self.current_bytecode.extend_from_slice(&m_ref.to_be_bytes());
+            }
+            Expr::Input => {
+                // 1. Crear instancia: new java/util/Scanner
+                let scan_u = self.cp.add_utf8("java/util/Scanner");
+                let scan_c = self.cp.add_class(scan_u);
+                self.current_bytecode.push(0xBB); // new
+                self.current_bytecode.extend_from_slice(&scan_c.to_be_bytes());
+                self.current_bytecode.push(0x59); // dup
+
+                // 2. Obtener System.in
+                let sys_u = self.cp.add_utf8("java/lang/System");
+                let sys_c = self.cp.add_class(sys_u);
+                let in_u = self.cp.add_utf8("in");
+                let in_t = self.cp.add_utf8("Ljava/io/InputStream;");
+                let in_nt = self.cp.add_name_and_type(in_u, in_t);
+                let f_in = self.cp.add_field_ref(sys_c, in_nt);
+                self.current_bytecode.push(0xB2); // getstatic
+                self.current_bytecode.extend_from_slice(&f_in.to_be_bytes());
+
+                // 3. Llamar al constructor: Scanner(InputStream)
+                let init_u = self.cp.add_utf8("<init>");
+                let init_s = self.cp.add_utf8("(Ljava/io/InputStream;)V");
+                let init_nt = self.cp.add_name_and_type(init_u, init_s);
+                let m_init = self.cp.add_method_ref(scan_c, init_nt);
+                self.current_bytecode.push(0xB7); // invokespecial
+                self.current_bytecode.extend_from_slice(&m_init.to_be_bytes());
+
+                // 4. Llamar a nextInt()
+                let next_u = self.cp.add_utf8("nextInt");
+                let next_s = self.cp.add_utf8("()I");
+                let next_nt = self.cp.add_name_and_type(next_u, next_s);
+                let m_next = self.cp.add_method_ref(scan_c, next_nt);
+                self.current_bytecode.push(0xB6); // invokevirtual
+                self.current_bytecode.extend_from_slice(&m_next.to_be_bytes());
             }
         }
     }
