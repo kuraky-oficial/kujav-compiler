@@ -9,7 +9,7 @@ pub enum Expr {
     Call(String, Vec<Expr>),
     Input,
     ArrayLiteral(Vec<Expr>),
-    ArrayAccess(Box<Expr>, Box<Expr>),
+    ArrayAccess(String, Box<Expr>), // String para el nombre de la variable
 }
 
 #[derive(Debug, Clone)]
