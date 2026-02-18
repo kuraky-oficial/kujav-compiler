@@ -1,0 +1,25 @@
+// Regla principal: un programa son múltiples declaraciones
+program = { SOI ~ declaration* ~ EOI }
+
+declaration = { fun_decl | let_decl }
+
+// Definición de variables: let x = 10
+let_decl = { "let" ~ identifier ~ "=" ~ expression }
+
+// Definición de funciones: fun nombre(args) { ... }
+fun_decl = { "fun" ~ identifier ~ "(" ~ parameter_list? ~ ")" ~ "{" ~ statement* ~ "}" }
+
+parameter_list = { identifier ~ ("," ~ identifier)* }
+
+statement = { print_stmt | let_decl }
+
+print_stmt = { "print" ~ "(" ~ expression ~ ")" }
+
+expression = { string | number | identifier }
+
+identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
+number     = @{ ASCII_DIGIT+ }
+string     = { "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+
+WHITESPACE = _{ " " | "\t" | "\r" | "\n" }
+COMMENT    = _{ "//" ~ (!"\n" ~ ANY)* }

@@ -5,7 +5,7 @@ fn main() -> std::io::Result<()> {
     // --- NUEVA PRUEBA DE LECTURA ---
     // Intenta leer un JAR (ejemplo: el rt.jar de Java o cualquier librería)
     println!("🔎 Escaneando librerías...");
-    if let Ok(meta) = reader::jar_reader::read_jar("D:\Java\lib\plugin.jar") {
+    if let Ok(meta) = reader::jar_reader::read_jar("D:\\Java\\lib\\plugin.jar") {
         for class in meta.class_names.iter().take(5) {
             println!("  Clase disponible: {}", class);
         }
