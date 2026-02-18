@@ -75,44 +75,31 @@ fn process_stmt(pair: pest::iterators::Pair<Rule>) -> Option<Stmt> {
         Rule::fun_decl => {
             let mut inner = inner_pair.into_inner();
             let name = inner.next().unwrap().as_str().to_string();
-            
             let mut params = Vec::new();
             let mut return_type = None;
             let mut block_pair = None;
 
             for part in inner {
                 match part.as_rule() {
-                    Rule::parameter_list => {
-                        params = part.into_inner().map(|p| p.as_str().to_string()).collect();
-                    }
-                    Rule::identifier => {
-                        // El identificador que aparece aquí es el tipo de retorno (ej: fun suma(): I)
-                        return_type = Some(part.as_str().to_string());
-                    }
-                    Rule::block => {
-                        block_pair = Some(part);
-                    }
+                    Rule::parameter_list => params = part.into_inner().map(|p| p.as_str().to_string()).collect(),
+                    Rule::identifier => return_type = Some(part.as_str().to_string()),
+                    Rule::block => block_pair = Some(part),
                     _ => {}
                 }
             }
-
             let mut body = Vec::new();
             if let Some(bp) = block_pair {
-                for p in bp.into_inner() {
-                    if let Some(s) = process_stmt(p) { body.push(s); }
-                }
+                for p in bp.into_inner() { if let Some(s) = process_stmt(p) { body.push(s); } }
             }
-            // AQUÍ ESTÁ EL FIX: Ahora pasamos los 4 argumentos requeridos
             Some(Stmt::Function(name, params, body, return_type))
         }
         Rule::call_stmt => {
-            let mut inner = inner_pair.into_inner();
+            let call_expr = inner_pair.into_inner().next().unwrap();
+            let mut inner = call_expr.into_inner();
             let name = inner.next().unwrap().as_str().to_string();
             let mut args = Vec::new();
-            if let Some(arg_list_pair) = inner.next() {
-                for arg_pair in arg_list_pair.into_inner() {
-                    args.push(process_expr(arg_pair));
-                }
+            if let Some(arg_list) = inner.next() {
+                for arg in arg_list.into_inner() { args.push(process_expr(arg)); }
             }
             Some(Stmt::Call(name, args))
         }
@@ -120,7 +107,6 @@ fn process_stmt(pair: pest::iterators::Pair<Rule>) -> Option<Stmt> {
     }
 }
 
-// Las funciones de expresiones (process_expr, process_term, etc.) permanecen igual
 fn process_expr(pair: pest::iterators::Pair<Rule>) -> Expr {
     let mut inner = pair.into_inner();
     let mut expr = process_term(inner.next().unwrap());
@@ -160,6 +146,15 @@ fn process_primary_expr(pair: pest::iterators::Pair<Rule>) -> Expr {
         Rule::string => Expr::String(inner.as_str().replace("\"", "")),
         Rule::number => Expr::Number(inner.as_str().parse().unwrap()),
         Rule::identifier => Expr::Identifier(inner.as_str().to_string()),
+        Rule::call_expr => {
+            let mut inner_call = inner.into_inner();
+            let name = inner_call.next().unwrap().as_str().to_string();
+            let mut args = Vec::new();
+            if let Some(arg_list) = inner_call.next() {
+                for arg in arg_list.into_inner() { args.push(process_expr(arg)); }
+            }
+            Expr::Call(name, args)
+        },
         _ => unreachable!("Error en primary: {:?}", inner.as_rule()),
     }
 }

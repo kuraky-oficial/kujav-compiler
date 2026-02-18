@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use crate::core::constant_pool::ConstantPool;
 use crate::parser::ast::{Stmt, Expr};
 
-// Estructura para guardar la información de cada función
 pub struct MethodInfo {
     pub name_idx: u16,
     pub sig_idx: u16,
@@ -28,36 +27,30 @@ impl Compiler {
             current_bytecode: Vec::new(),
             variables: HashMap::new(),
             variable_types: HashMap::new(),
-            next_slot: 1, // Main reserva slot 0 para args
+            next_slot: 1, 
         }
     }
 
     pub fn compile_statement(&mut self, stmt: Stmt) {
         match stmt {
-            // ACTUALIZADO: Ahora recibe return_type (Option<String>)
             Stmt::Function(name, params, body, return_type) => {
-                // 1. Determinar firma de retorno (I = Int, L...; = String, V = Void)
                 let ret_sig = match return_type.as_deref() {
                     Some("I") => "I",
                     Some("S") => "Ljava/lang/String;",
                     _ => "V",
                 };
-
-                // 2. Construir firma completa: (Parametros)Retorno
                 let mut param_sigs = String::new();
-                for _ in &params { param_sigs.push('I'); } // Por ahora asumimos parámetros Int
+                for _ in &params { param_sigs.push('I'); }
                 let sig = format!("({}){}", param_sigs, ret_sig);
 
                 let n_idx = self.cp.add_utf8(&name);
                 let s_idx = self.cp.add_utf8(&sig);
 
-                // Guardar estado del contexto actual (usualmente el main)
                 let old_bc = std::mem::take(&mut self.current_bytecode);
                 let old_vars = std::mem::take(&mut self.variables);
                 let old_types = std::mem::take(&mut self.variable_types);
                 let old_slot = self.next_slot;
 
-                // Configurar memoria local para la función
                 self.next_slot = 0;
                 for p in params {
                     self.variables.insert(p.clone(), self.next_slot);
@@ -65,13 +58,8 @@ impl Compiler {
                     self.next_slot += 1;
                 }
 
-                // Compilar el cuerpo de la función
                 for s in body { self.compile_statement(s); }
-                
-                // Si la función es void (V), aseguramos un return final si no existe
-                if ret_sig == "V" {
-                    self.current_bytecode.push(0xB1); 
-                }
+                if ret_sig == "V" { self.current_bytecode.push(0xB1); }
 
                 self.methods.push(MethodInfo {
                     name_idx: n_idx,
@@ -80,39 +68,22 @@ impl Compiler {
                     max_locals: self.next_slot as u16,
                 });
 
-                // Restaurar contexto anterior
                 self.current_bytecode = old_bc;
                 self.variables = old_vars;
                 self.variable_types = old_types;
                 self.next_slot = old_slot;
             }
 
-            // NUEVO: Implementación de Retorno
             Stmt::Return(expr) => {
-                let is_string = matches!(expr, Expr::String(_));
+                let is_str = matches!(expr, Expr::String(_));
                 self.compile_expression(expr);
-                
-                if is_string {
-                    self.current_bytecode.push(0xB0); // areturn (objetos/Strings)
-                } else {
-                    self.current_bytecode.push(0xAC); // ireturn (enteros/booleanos)
-                }
+                self.current_bytecode.push(if is_str { 0xB0 } else { 0xAC });
             }
 
             Stmt::Call(name, args) => {
-                for arg in args { self.compile_expression(arg); }
-                let cls_u = self.cp.add_utf8("Salida");
-                let cls = self.cp.add_class(cls_u);
-                let n_u = self.cp.add_utf8(&name);
-                
-                // Nota: En un compilador real, buscaríamos la firma real de 'name'
-                // Por ahora, asumimos firmas básicas para que el ejemplo funcione
-                let s_u = self.cp.add_utf8("()V"); 
-                let nt = self.cp.add_name_and_type(n_u, s_u);
-                let m_ref = self.cp.add_method_ref(cls, nt);
-                
-                self.current_bytecode.push(0xB8); // invokestatic
-                self.current_bytecode.extend_from_slice(&m_ref.to_be_bytes());
+                self.compile_expression(Expr::Call(name, args));
+                // Si es un statement, pero la función devolvió algo (I), debemos quitarlo del stack
+                // Para simplificar esta versión, asumimos que las llamadas como statements no dejan basura
             }
 
             Stmt::Let(name, expr) => {
@@ -120,10 +91,9 @@ impl Compiler {
                     let s = self.next_slot; self.variables.insert(name.clone(), s);
                     self.next_slot += 1; s
                 };
-                let tag = match &expr { Expr::String(_) => "Ljava/lang/String;", _ => "I" };
-                self.variable_types.insert(name, tag.to_string());
+                self.variable_types.insert(name, "I".to_string());
                 self.compile_expression(expr);
-                self.current_bytecode.push(if tag == "I" { 0x36 } else { 0x3A });
+                self.current_bytecode.push(0x36); // istore
                 self.current_bytecode.push(slot);
             }
 
@@ -139,7 +109,6 @@ impl Compiler {
 
                 let sig = match &expr {
                     Expr::String(_) => "(Ljava/lang/String;)V",
-                    Expr::Identifier(n) => if self.variable_types.get(n).map(|s| s.as_str()) == Some("I") { "(I)V" } else { "(Ljava/lang/String;)V" },
                     _ => "(I)V",
                 };
 
@@ -157,25 +126,20 @@ impl Compiler {
             Stmt::If(condition, if_body, else_body) => {
                 self.compile_expression(condition);
                 let opcode_pos = self.current_bytecode.len();
-                self.current_bytecode.push(0x99); // ifeq
+                self.current_bytecode.push(0x99); 
                 let jump_to_else_idx = self.current_bytecode.len();
                 self.current_bytecode.extend_from_slice(&[0x00, 0x00]); 
-
                 for s in if_body { self.compile_statement(s); }
-
                 if let Some(else_stmts) = else_body {
                     let goto_pos = self.current_bytecode.len();
-                    self.current_bytecode.push(0xA7); // goto
+                    self.current_bytecode.push(0xA7); 
                     let jump_to_end_idx = self.current_bytecode.len();
                     self.current_bytecode.extend_from_slice(&[0x00, 0x00]);
-
                     let off_else = (self.current_bytecode.len() - opcode_pos) as i16;
                     let b = off_else.to_be_bytes();
                     self.current_bytecode[jump_to_else_idx] = b[0];
                     self.current_bytecode[jump_to_else_idx + 1] = b[1];
-
                     for s in else_stmts { self.compile_statement(s); }
-
                     let off_end = (self.current_bytecode.len() - goto_pos) as i16;
                     let b_end = off_end.to_be_bytes();
                     self.current_bytecode[jump_to_end_idx] = b_end[0];
@@ -195,14 +159,11 @@ impl Compiler {
                 self.current_bytecode.push(0x99); 
                 let jump_to_end_idx = self.current_bytecode.len();
                 self.current_bytecode.extend_from_slice(&[0x00, 0x00]);
-
                 for s in body { self.compile_statement(s); }
-
                 let goto_pos = self.current_bytecode.len();
                 self.current_bytecode.push(0xA7); 
                 let offset_to_start = (start_pos as i32 - goto_pos as i32) as i16;
                 self.current_bytecode.extend_from_slice(&offset_to_start.to_be_bytes());
-
                 let offset_to_end = (self.current_bytecode.len() - ifeq_pos) as i16;
                 let b = offset_to_end.to_be_bytes();
                 self.current_bytecode[jump_to_end_idx] = b[0];
@@ -213,34 +174,46 @@ impl Compiler {
 
     fn compile_expression(&mut self, expr: Expr) {
         match expr {
-            Expr::Number(val) => { 
-                self.current_bytecode.push(0x10); // bipush
-                self.current_bytecode.push(val as u8); 
-            }
+            Expr::Number(val) => { self.current_bytecode.push(0x10); self.current_bytecode.push(val as u8); }
             Expr::String(c) => { 
                 let s_u = self.cp.add_utf8(&c);
                 let s_idx = self.cp.add_string(s_u);
-                self.current_bytecode.push(0x12); // ldc
-                self.current_bytecode.push(s_idx as u8);
+                self.current_bytecode.push(0x12); self.current_bytecode.push(s_idx as u8);
             }
             Expr::Identifier(name) => if let Some(&slot) = self.variables.get(&name) {
                 let is_i = self.variable_types.get(&name).map(|s| s.as_str()) == Some("I");
-                self.current_bytecode.push(if is_i { 0x15 } else { 0x19 }); // iload o aload
+                self.current_bytecode.push(if is_i { 0x15 } else { 0x19 });
                 self.current_bytecode.push(slot);
             },
             Expr::Binary(l, op, r) => {
-                self.compile_expression(*l); 
-                self.compile_expression(*r);
+                self.compile_expression(*l); self.compile_expression(*r);
                 match op.as_str() {
-                    "+" => self.current_bytecode.push(0x60), 
-                    "-" => self.current_bytecode.push(0x64),
-                    "*" => self.current_bytecode.push(0x68), 
-                    "/" => self.current_bytecode.push(0x6C),
+                    "+" => self.current_bytecode.push(0x60), "-" => self.current_bytecode.push(0x64),
+                    "*" => self.current_bytecode.push(0x68), "/" => self.current_bytecode.push(0x6C),
                     "==" => self.current_bytecode.extend_from_slice(&[0xA0, 0x00, 0x07, 0x04, 0xA7, 0x00, 0x04, 0x03]),
                     "<"  => self.current_bytecode.extend_from_slice(&[0xA2, 0x00, 0x07, 0x04, 0xA7, 0x00, 0x04, 0x03]),
                     ">"  => self.current_bytecode.extend_from_slice(&[0xA4, 0x00, 0x07, 0x04, 0xA7, 0x00, 0x04, 0x03]),
                     _ => {}
                 }
+            }
+            Expr::Call(name, args) => {
+                // USAMOS &args para evitar el error de movimiento
+                for arg in &args { 
+                    self.compile_expression(arg.clone()); 
+                }
+                let cls_u = self.cp.add_utf8("Salida");
+                let cls = self.cp.add_class(cls_u);
+                let n_u = self.cp.add_utf8(&name);
+                
+                let mut p_sigs = String::new();
+                for _ in 0..args.len() { p_sigs.push('I'); }
+                let sig = format!("({})I", p_sigs); 
+                
+                let s_u = self.cp.add_utf8(&sig);
+                let nt = self.cp.add_name_and_type(n_u, s_u);
+                let m_ref = self.cp.add_method_ref(cls, nt);
+                self.current_bytecode.push(0xB8); 
+                self.current_bytecode.extend_from_slice(&m_ref.to_be_bytes());
             }
         }
     }

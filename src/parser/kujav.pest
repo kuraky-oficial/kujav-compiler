@@ -3,18 +3,18 @@ program = { SOI ~ (declaration | statement)* ~ EOI }
 declaration = { fun_decl | let_decl }
 let_decl    = { "let" ~ identifier ~ "=" ~ expression }
 
-// Actualizado: permite (: ~ identifier) opcionalmente
 fun_decl    = { "fun" ~ identifier ~ "(" ~ parameter_list? ~ ")" ~ (":" ~ identifier)? ~ "{" ~ block ~ "}" }
-
 parameter_list = { identifier ~ ("," ~ identifier)* }
 argument_list  = { expression ~ ("," ~ expression)* }
 
-// Actualizado: incluye return_stmt
 statement = { while_stmt | if_stmt | print_stmt | call_stmt | let_decl | return_stmt }
 
 print_stmt = { "print" ~ expression }
-call_stmt  = { identifier ~ "(" ~ argument_list? ~ ")" }
 return_stmt = { "return" ~ expression }
+// Una llamada puede ser un statement solo (ej: saludar())
+call_stmt  = { call_expr } 
+// O una expresión (ej: let x = cuadrado(5))
+call_expr  = { identifier ~ "(" ~ argument_list? ~ ")" }
 
 if_stmt    = { "if" ~ expression ~ "{" ~ block ~ "}" ~ ("else" ~ "{" ~ block ~ "}")? }
 while_stmt = { "while" ~ expression ~ "{" ~ block ~ "}" }
@@ -26,7 +26,10 @@ term       = { factor ~ (add_op ~ factor)* }
 add_op     = { "+" | "-" }
 factor     = { primary ~ (mul_op ~ primary)* }
 mul_op     = { "*" | "/" }
-primary    = { string | number | identifier }
+
+// Actualizamos primary para incluir call_expr
+primary    = { string | number | call_expr | identifier }
+
 identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 number     = @{ ASCII_DIGIT+ }
 string     = { "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
