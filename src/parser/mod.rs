@@ -68,6 +68,36 @@ fn process_stmt(pair: pest::iterators::Pair<Rule>) -> Option<Stmt> {
             }
             Some(Stmt::While(condition, body))
         }
+        // --- AQUÍ ESTABA EL ERROR: AGREGAR ESTOS DOS CASOS ---
+        Rule::fun_decl => {
+            let mut inner = inner_pair.into_inner();
+            let name = inner.next().unwrap().as_str().to_string();
+            
+            let next = inner.next().unwrap();
+            let (params, block_pair) = if next.as_rule() == Rule::parameter_list {
+                (next.into_inner().map(|p| p.as_str().to_string()).collect(), inner.next().unwrap())
+            } else {
+                (Vec::new(), next) // Si no hay parámetros, el siguiente es el bloque
+            };
+
+            let mut body = Vec::new();
+            for p in block_pair.into_inner() {
+                if let Some(s) = process_stmt(p) { body.push(s); }
+            }
+            Some(Stmt::Function(name, params, body))
+        }
+        Rule::call_stmt => {
+            let mut inner = inner_pair.into_inner();
+            let name = inner.next().unwrap().as_str().to_string();
+            
+            let mut args = Vec::new();
+            if let Some(arg_list_pair) = inner.next() {
+                for arg_pair in arg_list_pair.into_inner() {
+                    args.push(process_expr(arg_pair));
+                }
+            }
+            Some(Stmt::Call(name, args))
+        }
         _ => None,
     }
 }
