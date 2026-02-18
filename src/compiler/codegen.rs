@@ -55,7 +55,6 @@ impl Compiler {
                 self.bytecode.push(0xB2); // getstatic
                 self.bytecode.extend_from_slice(&field_out.to_be_bytes());
 
-                // Cambiado is_obj por _is_obj para evitar la advertencia
                 let (sig, _is_obj) = match &expr {
                     Expr::String(_) => ("(Ljava/lang/String;)V", true),
                     Expr::Identifier(name) => {
@@ -103,7 +102,12 @@ impl Compiler {
             Expr::Binary(left, op, right) => {
                 self.compile_expression(*left);
                 self.compile_expression(*right);
-                if op == "+" { self.bytecode.push(0x60); } // iadd
+                match op.as_str() {
+                    "+" => self.bytecode.push(0x60), // iadd
+                    "-" => self.bytecode.push(0x64), // isub
+                    "*" => self.bytecode.push(0x68), // imul
+                    _ => {}
+                }
             }
         }
     }

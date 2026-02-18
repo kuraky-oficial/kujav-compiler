@@ -46,24 +46,34 @@ fn process_stmt(pair: pest::iterators::Pair<Rule>) -> Option<Stmt> {
 
 fn process_expr(pair: pest::iterators::Pair<Rule>) -> Expr {
     let mut inner = pair.into_inner();
-    let left = process_term(inner.next().unwrap());
+    let mut expr = process_term(inner.next().unwrap());
 
-    if let Some(op_pair) = inner.next() {
+    while let Some(op_pair) = inner.next() {
         let op = op_pair.as_str().to_string();
         let right = process_term(inner.next().unwrap());
-        Expr::Binary(Box::new(left), op, Box::new(right))
-    } else {
-        left
+        expr = Expr::Binary(Box::new(expr), op, Box::new(right));
     }
+    expr
 }
 
 fn process_term(pair: pest::iterators::Pair<Rule>) -> Expr {
-    // Entramos a lo que hay DENTRO del término
-    let inner = pair.into_inner().next().expect("Term vacío");
+    let mut inner = pair.into_inner();
+    let mut expr = process_factor(inner.next().unwrap());
+
+    while let Some(op_pair) = inner.next() {
+        let op = op_pair.as_str().to_string();
+        let right = process_factor(inner.next().unwrap());
+        expr = Expr::Binary(Box::new(expr), op, Box::new(right));
+    }
+    expr
+}
+
+fn process_factor(pair: pest::iterators::Pair<Rule>) -> Expr {
+    let inner = pair.into_inner().next().expect("Factor vacío");
     match inner.as_rule() {
         Rule::string => Expr::String(inner.as_str().replace("\"", "")),
         Rule::number => Expr::Number(inner.as_str().parse().unwrap()),
         Rule::identifier => Expr::Identifier(inner.as_str().to_string()),
-        _ => unreachable!("Regla no esperada en term: {:?}", inner.as_rule()),
+        _ => unreachable!(),
     }
 }

@@ -9,9 +9,8 @@ use std::io::Write;
 
 fn main() -> std::io::Result<()> {
     let source_code = r#"
-        let x = 10
-        let y = 5
-        print(x + y)
+        let resultado = 10 + 5 * 2
+        print(resultado)
     "#;
 
     println!("🔨 Parseando código Kujav...");
