@@ -14,6 +14,7 @@ pub enum Stmt {
     Let(String, Expr),
     Print(Expr),
     If(Expr, Vec<Stmt>, Option<Vec<Stmt>>),
-    While(Expr, Vec<Stmt>), // Bucle While
-    Function(String, Vec<String>, Vec<Stmt>),
+    While(Expr, Vec<Stmt>),
+    Function(String, Vec<String>, Vec<Stmt>), // Definicion
+    Call(String, Vec<Expr>),                 // Llamada
 }

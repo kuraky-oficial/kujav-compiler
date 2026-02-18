@@ -1,60 +1,74 @@
 // src/main.rs
-mod core;
-mod reader;
-mod parser;
-mod compiler;
-
-use std::fs;
-use std::io::Write;
+mod core; mod reader; mod parser; mod compiler;
+use std::fs; use std::io::Write;
 
 fn main() -> std::io::Result<()> {
     let source_code = r#"
-        let x = 5
-        while x > 0 {
-            print x
-            let x = x - 1
+        fun saludar() {
+            print "¡Hola desde Kujav fun!"
         }
-        print "¡Bucle terminado!"
+
+        let x = 10
+        if x == 10 {
+            saludar()
+        }
     "#;
 
-    println!("🔨 Parseando código Kujav...");
+    println!("🔨 Compilando Kujav...");
     let ast = parser::parse_to_ast(source_code);
-    let mut kujav_compiler = compiler::codegen::Compiler::new();
+    let mut kujav = compiler::codegen::Compiler::new();
     
-    let cls_u = kujav_compiler.cp.add_utf8("Salida");
-    let this_c = kujav_compiler.cp.add_class(cls_u);
-    let obj_u = kujav_compiler.cp.add_utf8("java/lang/Object");
+    // Preparar pozo de constantes base
+    let cls_u = kujav.cp.add_utf8("Salida");
+    let this_c = kujav.cp.add_class(cls_u);
+    let obj_u = kujav.cp.add_utf8("java/lang/Object");
     let super_c = kujav_compiler.cp.add_class(obj_u);
-    let m_n = kujav_compiler.cp.add_utf8("main");
-    let m_t = kujav_compiler.cp.add_utf8("([Ljava/lang/String;)V");
-    let c_a = kujav_compiler.cp.add_utf8("Code");
+    let m_n = kujav.cp.add_utf8("main");
+    let m_t = kujav.cp.add_utf8("([Ljava/lang/String;)V");
+    let c_a = kujav.cp.add_utf8("Code");
 
-    for stmt in ast {
-        kujav_compiler.compile_statement(stmt);
-    }
-    kujav_compiler.bytecode.push(0xB1); 
+    for stmt in ast { kujav.compile_statement(stmt); }
+    kujav.current_bytecode.push(0xB1); // return final del main
 
     let mut file = fs::File::create("Salida.class")?;
-    // FIX: Usamos 0x31 (Java 5) para máxima compatibilidad con saltos
+    // Usamos Java 5 (0x31) para evitar el error de StackMapTable en saltos
     file.write_all(&[0xCA, 0xFE, 0xBA, 0xBE, 0x00, 0x00, 0x00, 0x31])?;
-    file.write_all(&kujav_compiler.cp.to_bytes())?;
+    file.write_all(&kujav.cp.to_bytes())?;
     file.write_all(&[0x00, 0x21])?;
-    file.write_all(&this_c.to_be_bytes())?; 
-    file.write_all(&super_c.to_be_bytes())?;
-    file.write_all(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x09])?;
-    file.write_all(&m_n.to_be_bytes())?; 
-    file.write_all(&m_t.to_be_bytes())?; 
-    file.write_all(&[0x00, 0x01])?; 
+    file.write_all(&this_c.to_be_bytes())?; file.write_all(&super_c.to_be_bytes())?;
+    file.write_all(&[0x00, 0x00, 0x00, 0x00])?; 
 
-    file.write_all(&c_a.to_be_bytes())?; 
-    let attr_len: u32 = 12 + kujav_compiler.bytecode.len() as u32;
-    file.write_all(&attr_len.to_be_bytes())?;
-    file.write_all(&[0x00, 0x0F])?; // max_stack
-    file.write_all(&(kujav_compiler.next_slot as u16).to_be_bytes())?; 
-    file.write_all(&(kujav_compiler.bytecode.len() as u32).to_be_bytes())?;
-    file.write_all(&kujav_compiler.bytecode)?;
-    file.write_all(&[0x00, 0x00, 0x00, 0x00, 0x00, 0x00])?; 
+    // Cantidad de metodos: main + funciones del usuario
+    let num_methods = (1 + kujav.methods.len()) as u16;
+    file.write_all(&num_methods.to_be_bytes())?;
 
-    println!("✅ ¡Salida.class generada con éxito!");
+    // Escribir metodo 'main'
+    file.write_all(&[0x00, 0x09])?; // public static
+    file.write_all(&m_n.to_be_bytes())?; file.write_all(&m_t.to_be_bytes())?;
+    file.write_all(&[0x00, 0x01])?; file.write_all(&c_a.to_be_bytes())?;
+    let main_len: u32 = 12 + kujav.current_bytecode.len() as u32;
+    file.write_all(&main_len.to_be_bytes())?;
+    file.write_all(&[0x00, 0x0A, 0x00, 0x0A])?; // max_stack y max_locals
+    file.write_all(&(kujav.current_bytecode.len() as u32).to_be_bytes())?;
+    file.write_all(&kujav.current_bytecode)?;
+    file.write_all(&[0x00, 0x00, 0x00, 0x00])?;
+
+    // Escribir cada funcion 'fun'
+    for m in &kujav.methods {
+        file.write_all(&[0x00, 0x09])?; // public static
+        let name_idx = kujav.cp.add_utf8(&m.name);
+        let sig_idx = kujav.cp.add_utf8("()V");
+        file.write_all(&name_idx.to_be_bytes())?; file.write_all(&sig_idx.to_be_bytes())?;
+        file.write_all(&[0x00, 0x01])?; file.write_all(&c_a.to_be_bytes())?;
+        let attr_len: u32 = 12 + m.bytecode.len() as u32;
+        file.write_all(&attr_len.to_be_bytes())?;
+        file.write_all(&[0x00, 0x0A])?; file.write_all(&m.max_locals.to_be_bytes())?;
+        file.write_all(&(m.bytecode.len() as u32).to_be_bytes())?;
+        file.write_all(&m.bytecode)?;
+        file.write_all(&[0x00, 0x00, 0x00, 0x00])?;
+    }
+
+    file.write_all(&[0x00, 0x00])?; // Atributos de clase
+    println!("✅ Salida.class generada con éxito.");
     Ok(())
 }
