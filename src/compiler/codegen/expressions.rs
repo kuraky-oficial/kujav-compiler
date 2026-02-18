@@ -36,14 +36,15 @@ impl Compiler {
                 self.current_bytecode.push(0x10); self.current_bytecode.push(elems.len() as u8);
                 self.current_bytecode.push(0xBC); self.current_bytecode.push(10); // newarray T_INT
                 for (i, e) in elems.into_iter().enumerate() {
-                    self.current_bytecode.push(0x59); // dup
+                    self.current_bytecode.push(0x59);
                     self.current_bytecode.push(0x10); self.current_bytecode.push(i as u8);
                     self.compile_expression(e);
                     self.current_bytecode.push(0x4F); // iastore
                 }
             }
             Expr::ArrayAccess(name, idx) => {
-                if let Some(&slot) = self.variables.get(&name) { // Corregido: String implementa Borrow<str>
+                // CORRECCIÓN: name ya es String, no necesitamos Borrow de Box
+                if let Some(&slot) = self.variables.get(&name) {
                     self.current_bytecode.push(0x19); self.current_bytecode.push(slot); // aload
                     self.compile_expression(*idx);
                     self.current_bytecode.push(0x2E); // iaload

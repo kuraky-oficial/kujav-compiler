@@ -1,46 +1,81 @@
-// src/compiler/codegen/statements.rs
-use crate::compiler::codegen::{Compiler, MethodInfo};
-use crate::parser::ast::Stmt; // Importación necesaria
+// src/compiler/semantics.rs
+use std::collections::HashMap;
+use crate::parser::ast::{Expr, Stmt};
+use crate::compiler::types::KType;
 
-impl Compiler {
-    pub fn compile_statement(&mut self, stmt: Stmt) {
+pub struct SemanticAnalyzer {
+    pub symbols: HashMap<String, KType>,
+}
+
+impl SemanticAnalyzer {
+    pub fn new() -> Self {
+        Self { symbols: HashMap::new() }
+    }
+
+    pub fn check_stmt(&mut self, stmt: &Stmt) -> Result<(), String> {
         match stmt {
             Stmt::Let(name, expr) => {
-                let is_str = self.is_string_expr(&expr);
-                let slot = if let Some(&s) = self.variables.get(&name) { s } else {
-                    let s = self.next_slot; self.variables.insert(name.clone(), s);
-                    self.next_slot += 1; s
-                };
-                self.variable_types.insert(name, if is_str { "Ljava/lang/String;".into() } else { "I".into() });
-                self.compile_expression(expr);
-                self.current_bytecode.push(if is_str { 0x3A } else { 0x36 });
-                self.current_bytecode.push(slot);
+                let t = self.check_expr(expr)?;
+                self.symbols.insert(name.clone(), t);
+                Ok(())
             }
-            Stmt::Print(expr) => {
-                let is_str = self.is_string_expr(&expr);
-                let sys_u = self.cp.add_utf8("java/lang/System");
-                let sys_c = self.cp.add_class(sys_u);
-                let out_u = self.cp.add_utf8("out");
-                let out_s = self.cp.add_utf8("Ljava/io/PrintStream;");
-                let o_nt = self.cp.add_name_and_type(out_u, out_s);
-                let f_out = self.cp.add_field_ref(sys_c, o_nt);
-                self.current_bytecode.push(0xB2); 
-                self.current_bytecode.extend_from_slice(&f_out.to_be_bytes());
-
-                self.compile_expression(expr);
-
-                let sig = if is_str { "(Ljava/lang/String;)V" } else { "(I)V" };
-                let ps_u = self.cp.add_utf8("java/io/PrintStream");
-                let ps_c = self.cp.add_class(ps_u);
-                let pr_u = self.cp.add_utf8("println");
-                let pr_s = self.cp.add_utf8(sig);
-                let pr_nt = self.cp.add_name_and_type(pr_n, pr_s);
-                let m_pr = self.cp.add_method_ref(ps_c, pr_nt);
-                self.current_bytecode.push(0xB6); 
-                self.current_bytecode.extend_from_slice(&m_pr.to_be_bytes());
+            Stmt::Print(expr) => { self.check_expr(expr)?; Ok(()) }
+            Stmt::If(cond, if_body, else_body) => {
+                if self.check_expr(cond)? != KType::Bool {
+                    return Err("La condición del 'if' debe ser de tipo Bool".into());
+                }
+                for s in if_body { self.check_stmt(s)?; }
+                if let Some(eb) = else_body {
+                    for s in eb { self.check_stmt(s)?; }
+                }
+                Ok(())
             }
-            // ... resto de Stmt (If, While, Function) igual que antes
-            _ => {}
+            Stmt::While(cond, body) => {
+                if self.check_expr(cond)? != KType::Bool {
+                    return Err("La condición del 'while' debe ser de tipo Bool".into());
+                }
+                for s in body { self.check_stmt(s)?; }
+                Ok(())
+            }
+            Stmt::Function(name, params, body, _ret) => {
+                // Por ahora lógica simple: registrar función como Int
+                self.symbols.insert(name.clone(), KType::Int);
+                Ok(())
+            }
+            _ => Ok(()),
+        }
+    }
+
+    pub fn check_expr(&self, expr: &Expr) -> Result<KType, String> {
+        match expr {
+            Expr::Number(_) => Ok(KType::Int),
+            Expr::String(_) => Ok(KType::String),
+            Expr::Boolean(_) => Ok(KType::Bool),
+            Expr::Identifier(n) => self.symbols.get(n).cloned().ok_or(format!("Variable '{}' no definida", n)),
+            Expr::Binary(l, op, r) => {
+                let lt = self.check_expr(l)?;
+                let rt = self.check_expr(r)?;
+                if op == "+" && (lt == KType::String || rt == KType::String) { Ok(KType::String) }
+                else if lt == rt { Ok(lt) }
+                else { Err(format!("Tipos incompatibles: {:?} {} {:?}", lt, op, rt)) }
+            }
+            Expr::ArrayLiteral(elems) => {
+                if elems.is_empty() { return Ok(KType::Array(Box::new(KType::Int))); }
+                let first_t = self.check_expr(&elems[0])?;
+                for e in elems {
+                    if self.check_expr(e)? != first_t { return Err("No se permiten tipos mixtos en arreglos".into()); }
+                }
+                Ok(KType::Array(Box::new(first_t)))
+            }
+            Expr::ArrayAccess(name, idx) => {
+                if self.check_expr(idx)? != KType::Int { return Err("El índice del arreglo debe ser Int".into()); }
+                match self.symbols.get(name) {
+                    Some(KType::Array(t)) => Ok(*t.clone()),
+                    _ => Err(format!("'{}' no es un arreglo", name)),
+                }
+            }
+            Expr::Input => Ok(KType::Int),
+            Expr::Call(_, _) => Ok(KType::Int),
         }
     }
 }

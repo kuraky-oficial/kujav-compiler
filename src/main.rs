@@ -1,21 +1,20 @@
 // src/main.rs
 mod core; mod reader; mod parser; mod compiler;
-use std::fs; 
+use std::fs;
 use std::io::Write;
 use crate::compiler::semantics::SemanticAnalyzer;
 
 fn main() -> std::io::Result<()> {
     let source_code = r#"
         let lista = [10, 20, 30]
-let primer_valor = lista[0]
-print "El primer valor es: " + primer_valor
+        let x = lista[1]
+        print "El valor es: " + x
     "#;
 
     println!("🔨 Compilando Kujav...");
-
     let ast = parser::parse_to_ast(source_code);
 
-    // 1. ANALISIS SEMÁNTICO
+    // FASE 1: Análisis Semántico con el nuevo objeto
     let mut analyzer = SemanticAnalyzer::new();
     for stmt in &ast {
         if let Err(e) = analyzer.check_stmt(stmt) {
