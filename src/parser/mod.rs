@@ -102,7 +102,8 @@ fn process_stmt(pair: pest::iterators::Pair<Rule>) -> Option<Stmt> {
 
 fn process_expr(pair: pest::iterators::Pair<Rule>) -> Expr {
     let mut inner = pair.into_inner();
-    let mut expr = process_comp_expr(inner.next().unwrap());
+    let first = inner.next().expect("Expresión vacía");
+    let mut expr = process_comp_expr(first);
     while let Some(op_pair) = inner.next() {
         let op = op_pair.as_str().to_string();
         let right = process_comp_expr(inner.next().unwrap());
@@ -153,6 +154,20 @@ fn process_primary_expr(pair: pest::iterators::Pair<Rule>) -> Expr {
         Rule::input_expr => Expr::Input,
         Rule::expression => process_expr(inner), 
         Rule::identifier => Expr::Identifier(inner.as_str().to_string()),
+        // --- NUEVO: Manejo de Arreglos ---
+        Rule::array_lit => {
+            let mut elements = Vec::new();
+            for expr_pair in inner.into_inner() {
+                elements.push(process_expr(expr_pair));
+            }
+            Expr::ArrayLiteral(elements)
+        }
+        Rule::array_access => {
+            let mut inner_access = inner.into_inner();
+            let name = inner_access.next().unwrap().as_str().to_string();
+            let index_expr = process_expr(inner_access.next().unwrap());
+            Expr::ArrayAccess(name, Box::new(index_expr))
+        }
         Rule::call_expr => {
             let mut inner_call = inner.into_inner();
             let name = inner_call.next().unwrap().as_str().to_string();

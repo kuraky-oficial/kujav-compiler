@@ -1,5 +1,6 @@
 // src/compiler/types.rs
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 pub enum KType {
     Int,
     String,
@@ -9,6 +10,7 @@ pub enum KType {
 }
 
 impl KType {
+    #[allow(dead_code)]
     pub fn to_jvm_sig(&self) -> String {
         match self {
             KType::Int => "I".into(),

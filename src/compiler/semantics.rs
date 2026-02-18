@@ -59,7 +59,7 @@ impl SemanticAnalyzer {
                 let rt = self.check_expr(r)?;
                 if op == "+" && (lt == KType::String || rt == KType::String) { Ok(KType::String) }
                 else if lt == rt { Ok(lt) }
-                else { Err(format!("Tipos incompatibles: {:?} {} {:?}", lt, op, rt)) }
+                else { Err(format!("Incompatibilidad: {:?} {} {:?}", lt, op, rt)) }
             }
             Expr::ArrayLiteral(elems) => {
                 if elems.is_empty() { return Ok(KType::Array(Box::new(KType::Int))); }
@@ -68,10 +68,9 @@ impl SemanticAnalyzer {
             }
             Expr::ArrayAccess(name, idx) => {
                 if self.check_expr(idx)? != KType::Int { return Err("Índice debe ser Int".into()); }
-                match self.symbols.get(name) {
-                    Some(KType::Array(t)) => Ok(*t.clone()),
-                    _ => Err(format!("'{}' no es un arreglo", name)),
-                }
+                self.symbols.get(name)
+                    .and_then(|t| if let KType::Array(inner) = t { Some(*inner.clone()) } else { None })
+                    .ok_or(format!("'{}' no es un arreglo", name))
             }
             Expr::Input => Ok(KType::Int),
             Expr::Call(_, _) => Ok(KType::Int),

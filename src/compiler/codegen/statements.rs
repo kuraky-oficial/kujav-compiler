@@ -1,4 +1,3 @@
-// src/compiler/codegen/statements.rs
 use crate::compiler::codegen::{Compiler, MethodInfo};
 use crate::parser::ast::Stmt;
 
@@ -22,20 +21,20 @@ impl Compiler {
                 let sys_c = self.cp.add_class(sys_u);
                 let out_u = self.cp.add_utf8("out");
                 let out_s = self.cp.add_utf8("Ljava/io/PrintStream;");
-                let o_nt = self.cp.add_name_and_type(out_u, out_s);
-                let f_out = self.cp.add_field_ref(sys_c, o_nt);
+                let nt_out = self.cp.add_name_and_type(out_u, out_s);
+                let f_out = self.cp.add_field_ref(sys_c, nt_out);
                 self.current_bytecode.push(0xB2); 
                 self.current_bytecode.extend_from_slice(&f_out.to_be_bytes());
 
                 self.compile_expression(expr);
 
-                let sig = if is_str { "(Ljava/lang/String;)V" } else { "(I)V" };
+                let sig_str = if is_str { "(Ljava/lang/String;)V" } else { "(I)V" };
                 let ps_u = self.cp.add_utf8("java/io/PrintStream");
                 let ps_c = self.cp.add_class(ps_u);
                 let pr_u = self.cp.add_utf8("println");
-                let sig_u = self.cp.add_utf8(sig);
-                let pr_nt = self.cp.add_name_and_type(pr_u, sig_u);
-                let m_pr = self.cp.add_method_ref(ps_c, pr_nt);
+                let pr_s = self.cp.add_utf8(sig_str);
+                let nt_pr = self.cp.add_name_and_type(pr_u, pr_s);
+                let m_pr = self.cp.add_method_ref(ps_c, nt_pr);
                 self.current_bytecode.push(0xB6); 
                 self.current_bytecode.extend_from_slice(&m_pr.to_be_bytes());
             }
@@ -93,7 +92,7 @@ impl Compiler {
             Stmt::Call(name, args) => {
                 use crate::parser::ast::Expr;
                 self.compile_expression(Expr::Call(name, args));
-                self.current_bytecode.push(0x57); 
+                self.current_bytecode.push(0x57); // pop
             }
             Stmt::Return(expr) => {
                 let is_str = self.is_string_expr(&expr);
