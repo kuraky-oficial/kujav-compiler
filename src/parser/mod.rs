@@ -40,6 +40,10 @@ fn process_stmt(pair: pest::iterators::Pair<Rule>) -> Option<Stmt> {
             let expr = process_expr(inner_pair.into_inner().next().unwrap());
             Some(Stmt::Print(expr))
         }
+        Rule::return_stmt => {
+            let expr = process_expr(inner_pair.into_inner().next().unwrap());
+            Some(Stmt::Return(expr))
+        }
         Rule::if_stmt => {
             let mut inner = inner_pair.into_inner();
             let condition = process_expr(inner.next().unwrap());
@@ -68,28 +72,42 @@ fn process_stmt(pair: pest::iterators::Pair<Rule>) -> Option<Stmt> {
             }
             Some(Stmt::While(condition, body))
         }
-        // --- AQUÍ ESTABA EL ERROR: AGREGAR ESTOS DOS CASOS ---
         Rule::fun_decl => {
             let mut inner = inner_pair.into_inner();
             let name = inner.next().unwrap().as_str().to_string();
             
-            let next = inner.next().unwrap();
-            let (params, block_pair) = if next.as_rule() == Rule::parameter_list {
-                (next.into_inner().map(|p| p.as_str().to_string()).collect(), inner.next().unwrap())
-            } else {
-                (Vec::new(), next) // Si no hay parámetros, el siguiente es el bloque
-            };
+            let mut params = Vec::new();
+            let mut return_type = None;
+            let mut block_pair = None;
+
+            for part in inner {
+                match part.as_rule() {
+                    Rule::parameter_list => {
+                        params = part.into_inner().map(|p| p.as_str().to_string()).collect();
+                    }
+                    Rule::identifier => {
+                        // El identificador que aparece aquí es el tipo de retorno (ej: fun suma(): I)
+                        return_type = Some(part.as_str().to_string());
+                    }
+                    Rule::block => {
+                        block_pair = Some(part);
+                    }
+                    _ => {}
+                }
+            }
 
             let mut body = Vec::new();
-            for p in block_pair.into_inner() {
-                if let Some(s) = process_stmt(p) { body.push(s); }
+            if let Some(bp) = block_pair {
+                for p in bp.into_inner() {
+                    if let Some(s) = process_stmt(p) { body.push(s); }
+                }
             }
-            Some(Stmt::Function(name, params, body))
+            // AQUÍ ESTÁ EL FIX: Ahora pasamos los 4 argumentos requeridos
+            Some(Stmt::Function(name, params, body, return_type))
         }
         Rule::call_stmt => {
             let mut inner = inner_pair.into_inner();
             let name = inner.next().unwrap().as_str().to_string();
-            
             let mut args = Vec::new();
             if let Some(arg_list_pair) = inner.next() {
                 for arg_pair in arg_list_pair.into_inner() {
@@ -102,6 +120,7 @@ fn process_stmt(pair: pest::iterators::Pair<Rule>) -> Option<Stmt> {
     }
 }
 
+// Las funciones de expresiones (process_expr, process_term, etc.) permanecen igual
 fn process_expr(pair: pest::iterators::Pair<Rule>) -> Expr {
     let mut inner = pair.into_inner();
     let mut expr = process_term(inner.next().unwrap());
