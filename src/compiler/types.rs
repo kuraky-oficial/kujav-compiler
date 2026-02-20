@@ -7,13 +7,14 @@ pub enum KType {
     Bool,
     Void,
     Array(Box<KType>),
+    Custom(String), // Para clases de Java externas
 }
 
 impl KType {
-    #[allow(dead_code)] // <--- Esto elimina la advertencia
+    #[allow(dead_code)]
     pub fn is_reference(&self) -> bool {
         match self {
-            KType::String | KType::Array(_) => true,
+            KType::String | KType::Array(_) | KType::Custom(_) => true,
             _ => false,
         }
     }
@@ -26,6 +27,11 @@ impl KType {
             KType::Bool => "Z".into(),
             KType::Void => "V".into(),
             KType::Array(t) => format!("[{}", t.to_jvm_sig()),
+            KType::Custom(name) => {
+                // Convertimos java.util.ArrayList a java/util/ArrayList
+                let internal = name.replace('.', "/");
+                format!("L{};", internal)
+            }
         }
     }
 }

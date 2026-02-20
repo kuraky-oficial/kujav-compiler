@@ -1,4 +1,6 @@
 // src/parser/ast.rs
+use crate::compiler::types::KType;
+
 #[derive(Debug, Clone)]
 pub enum Expr {
     Number(i32),
@@ -9,18 +11,19 @@ pub enum Expr {
     Call(String, Vec<Expr>),
     Input,
     ArrayLiteral(Vec<Expr>),
-    ArrayAccess(String, Box<Expr>), // String para el nombre de la variable
+    ArrayAccess(String, Box<Expr>),
 }
 
-// src/parser/ast.rs
 #[derive(Debug, Clone)]
 pub enum Stmt {
-    Let(String, Expr),
+    // Nombre, Expresión, Tipo Anotado (como String para el parser)
+    Let(String, Expr, Option<String>), 
     Print(Expr),
     If(Expr, Vec<Stmt>, Option<Vec<Stmt>>),
     While(Expr, Vec<Stmt>),
-    Function(String, Vec<String>, Vec<Stmt>, Option<String>),
+    // Nombre, Parámetros (Nombre, Tipo), Cuerpo, Tipo de Retorno
+    Function(String, Vec<(String, KType)>, Vec<Stmt>, KType),
     Call(String, Vec<Expr>),
-    Return(Expr),
-    IndexAssign(String, Expr, Expr), // <--- NUEVO: (nombre, indice, nuevo_valor)
+    Return(Option<Expr>), // El retorno puede ser vacío en Lua
+    IndexAssign(String, Expr, Expr),
 }

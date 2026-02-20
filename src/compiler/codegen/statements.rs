@@ -5,7 +5,7 @@ use crate::parser::ast::Stmt;
 impl Compiler {
     pub fn compile_statement(&mut self, stmt: Stmt) {
         match stmt {
-            Stmt::Let(name, expr) => {
+            Stmt::Let(name, expr, _type_ann) => {
                 let is_ref = self.is_ref_expr(&expr);
                 let slot = if let Some(&s) = self.variables.get(&name) { s } else {
                     let s = self.next_slot;
@@ -82,28 +82,61 @@ impl Compiler {
                 self.current_bytecode[jump_to_end_idx..jump_to_end_idx+2].copy_from_slice(&off_end.to_be_bytes());
             }
             Stmt::Function(name, params, body, return_type) => {
-                let ret_sig = match return_type.as_deref() { Some("S") => "Ljava/lang/String;", _ => "I" };
+                let ret_sig = return_type.to_jvm_sig();
                 let mut p_sigs = String::new();
-                for _ in &params { p_sigs.push('I'); }
+                
+                // Guardamos estado del main
+                let (old_bc, old_vars, old_types, old_slot) = (
+                    std::mem::take(&mut self.current_bytecode), 
+                    std::mem::take(&mut self.variables), 
+                    std::mem::take(&mut self.variable_types), 
+                    self.next_slot
+                );
+
+                self.next_slot = 0;
+                // Corregido: params es Vec<(String, KType)>
+                for (p_name, p_type) in params {
+                    p_sigs.push_str(&p_type.to_jvm_sig());
+                    self.variables.insert(p_name.clone(), self.next_slot);
+                    self.variable_types.insert(p_name, p_type.to_jvm_sig());
+                    self.next_slot += 1;
+                }
+
                 let sig = format!("({}){}", p_sigs, ret_sig);
                 let n_idx = self.cp.add_utf8(&name);
                 let s_idx = self.cp.add_utf8(&sig);
-                let (old_bc, old_vars, old_types, old_slot) = (std::mem::take(&mut self.current_bytecode), std::mem::take(&mut self.variables), std::mem::take(&mut self.variable_types), self.next_slot);
-                self.next_slot = 0;
-                for p in params { self.variables.insert(p.clone(), self.next_slot); self.variable_types.insert(p, "I".into()); self.next_slot += 1; }
+
                 for s in body { self.compile_statement(s); }
-                self.methods.push(MethodInfo { name_idx: n_idx, sig_idx: s_idx, bytecode: std::mem::take(&mut self.current_bytecode), max_locals: self.next_slot as u16 });
-                self.current_bytecode = old_bc; self.variables = old_vars; self.variable_types = old_types; self.next_slot = old_slot;
+                
+                // Return por defecto según el tipo
+                self.current_bytecode.push(if return_type.is_reference() { 0xB0 } else if return_type == crate::compiler::types::KType::Void { 0xB1 } else { 0xAC });
+
+                self.methods.push(MethodInfo { 
+                    name_idx: n_idx, 
+                    sig_idx: s_idx, 
+                    bytecode: std::mem::take(&mut self.current_bytecode), 
+                    max_locals: self.next_slot as u16 
+                });
+
+                // Restauramos estado
+                self.current_bytecode = old_bc; 
+                self.variables = old_vars; 
+                self.variable_types = old_types; 
+                self.next_slot = old_slot;
             }
             Stmt::Call(name, args) => {
                 use crate::parser::ast::Expr;
                 self.compile_expression(Expr::Call(name, args));
                 self.current_bytecode.push(0x57); 
             }
-            Stmt::Return(expr) => {
-                let is_ref = self.is_ref_expr(&expr);
-                self.compile_expression(expr);
-                self.current_bytecode.push(if is_ref { 0xB0 } else { 0xAC });
+            Stmt::Return(maybe_expr) => {
+                if let Some(expr) = maybe_expr {
+                    let is_ref = self.is_ref_expr(&expr);
+                    self.compile_expression(expr);
+                    self.current_bytecode.push(if is_ref { 0xB0 } else { 0xAC });
+                } else {
+                    self.current_bytecode.push(0xB1); // return void
+                }
             }
             Stmt::IndexAssign(name, idx_expr, val_expr) => {
                 if let Some(&slot) = self.variables.get(&name) {
