@@ -8,8 +8,10 @@ impl Compiler {
             Stmt::Let(name, expr) => {
                 let is_ref = self.is_ref_expr(&expr);
                 let slot = if let Some(&s) = self.variables.get(&name) { s } else {
-                    let s = self.next_slot; self.variables.insert(name.clone(), s);
-                    self.next_slot += 1; s
+                    let s = self.next_slot;
+                    self.variables.insert(name.clone(), s);
+                    self.next_slot += 1;
+                    s
                 };
                 
                 let type_sig = if is_ref { "Ljava/lang/Object;".to_string() } else { "I".to_string() };
@@ -104,35 +106,12 @@ impl Compiler {
                 self.current_bytecode.push(if is_ref { 0xB0 } else { 0xAC });
             }
             Stmt::IndexAssign(name, idx_expr, val_expr) => {
-    if let Some(&slot) = self.variables.get(&name) {
-        // 1. Cargar la referencia del arreglo
-        self.current_bytecode.push(0x19); // aload
-        self.current_bytecode.push(slot);
-        
-        // 2. Cargar el índice
-        self.compile_expression(idx_expr);
-        
-        // 3. Cargar el nuevo valor
-        self.compile_expression(val_expr);
-        
-        // 4. Guardar: iastore (para arreglos de tipo int)
-        self.current_bytecode.push(0x4F); 
-    }
-}
-Stmt::IndexAssign(name, idx_expr, val_expr) => {
                 if let Some(&slot) = self.variables.get(&name) {
-                    // 1. Cargar la referencia del arreglo
                     self.current_bytecode.push(0x19); // aload
                     self.current_bytecode.push(slot);
-                    
-                    // 2. Cargar el índice
                     self.compile_expression(idx_expr);
-                    
-                    // 3. Cargar el nuevo valor
                     self.compile_expression(val_expr);
-                    
-                    // 4. Guardar: iastore (saca ref, index y value del stack)
-                    self.current_bytecode.push(0x4F); 
+                    self.current_bytecode.push(0x4F); // iastore
                 }
             }
         }

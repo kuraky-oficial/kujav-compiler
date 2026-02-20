@@ -45,21 +45,18 @@ impl SemanticAnalyzer {
                 for a in args { self.check_expr(a)?; }
                 Ok(())
             }
-            // --- CORRECCIÓN: Validación de asignación en arreglos ---
             Stmt::IndexAssign(name, idx_expr, val_expr) => {
-                if self.check_expr(idx_expr)? != KType::Int {
-                    return Err(format!("El índice para '{}' debe ser un entero", name));
-                }
-                let val_type = self.check_expr(val_expr)?;
+                self.check_expr(idx_expr)?;
+                let val_t = self.check_expr(val_expr)?;
                 match self.symbols.get(name) {
                     Some(KType::Array(inner)) => {
-                        if **inner != val_type {
-                            return Err(format!("No puedes asignar {:?} a un arreglo de {:?}", val_type, inner));
+                        if **inner != val_t {
+                            return Err(format!("Tipo incorrecto para el arreglo '{}'", name));
                         }
+                        Ok(())
                     },
-                    _ => return Err(format!("'{}' no es un arreglo o no está definido", name)),
+                    _ => Err(format!("'{}' no es un arreglo", name))
                 }
-                Ok(())
             }
         }
     }
@@ -75,7 +72,7 @@ impl SemanticAnalyzer {
                 let rt = self.check_expr(r)?;
                 if op == "+" && (lt == KType::String || rt == KType::String) { Ok(KType::String) }
                 else if lt == rt { Ok(lt) }
-                else { Err(format!("Incompatibilidad: {:?} {} {:?}", lt, op, rt)) }
+                else { Err(format!("Tipos incompatibles: {:?} {} {:?}", lt, op, rt)) }
             }
             Expr::ArrayLiteral(elems) => {
                 if elems.is_empty() { return Ok(KType::Array(Box::new(KType::Int))); }
@@ -83,10 +80,11 @@ impl SemanticAnalyzer {
                 Ok(KType::Array(Box::new(first_t)))
             }
             Expr::ArrayAccess(name, idx) => {
-                if self.check_expr(idx)? != KType::Int { return Err("Índice debe ser Int".into()); }
-                self.symbols.get(name)
-                    .and_then(|t| if let KType::Array(inner) = t { Some(*inner.clone()) } else { None })
-                    .ok_or(format!("'{}' no es un arreglo", name))
+                self.check_expr(idx)?;
+                match self.symbols.get(name) {
+                    Some(KType::Array(inner)) => Ok(*inner.clone()),
+                    _ => Err(format!("'{}' no es un arreglo", name)),
+                }
             }
             Expr::Input => Ok(KType::Int),
             Expr::Call(_, _) => Ok(KType::Int),
