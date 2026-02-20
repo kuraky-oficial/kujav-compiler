@@ -5,14 +5,9 @@ use crate::parser::ast::Stmt;
 impl Compiler {
     pub fn compile_statement(&mut self, stmt: Stmt) {
         match stmt {
-            Stmt::Let(name, expr, _type_ann) => {
+            Stmt::Let(name, expr, _) => {
                 let is_ref = self.is_ref_expr(&expr);
-                let slot = if let Some(&s) = self.variables.get(&name) { s } else {
-                    let s = self.next_slot;
-                    self.variables.insert(name.clone(), s);
-                    self.next_slot += 1;
-                    s
-                };
+                let slot = self.get_or_create_slot(&name);
                 
                 let type_sig = if is_ref { "Ljava/lang/Object;".to_string() } else { "I".to_string() };
                 self.variable_types.insert(name.clone(), type_sig);
@@ -23,26 +18,10 @@ impl Compiler {
             }
             Stmt::Print(expr) => {
                 let is_ref = self.is_ref_expr(&expr);
-                let sys_u = self.cp.add_utf8("java/lang/System");
-                let sys_c = self.cp.add_class(sys_u);
-                let out_u = self.cp.add_utf8("out");
-                let out_s = self.cp.add_utf8("Ljava/io/PrintStream;");
-                let nt_out = self.cp.add_name_and_type(out_u, out_s);
-                let f_out = self.cp.add_field_ref(sys_c, nt_out);
-                self.current_bytecode.push(0xB2); 
-                self.current_bytecode.extend_from_slice(&f_out.to_be_bytes());
-
+                // Llamamos a los métodos auxiliares definidos abajo
+                self.prepare_println_call();
                 self.compile_expression(expr);
-
-                let sig_str = if is_ref { "(Ljava/lang/Object;)V" } else { "(I)V" };
-                let ps_u = self.cp.add_utf8("java/io/PrintStream");
-                let ps_c = self.cp.add_class(ps_u);
-                let pr_u = self.cp.add_utf8("println");
-                let pr_s = self.cp.add_utf8(sig_str);
-                let nt_pr = self.cp.add_name_and_type(pr_u, pr_s);
-                let m_pr = self.cp.add_method_ref(ps_c, nt_pr);
-                self.current_bytecode.push(0xB6); 
-                self.current_bytecode.extend_from_slice(&m_pr.to_be_bytes());
+                self.emit_println_invoke(is_ref);
             }
             Stmt::If(cond, if_b, else_b) => {
                 self.compile_expression(cond);
@@ -82,19 +61,15 @@ impl Compiler {
                 self.current_bytecode[jump_to_end_idx..jump_to_end_idx+2].copy_from_slice(&off_end.to_be_bytes());
             }
             Stmt::Function(name, params, body, return_type) => {
-                let ret_sig = return_type.to_jvm_sig();
                 let mut p_sigs = String::new();
-                
-                // Guardamos estado del main
                 let (old_bc, old_vars, old_types, old_slot) = (
-                    std::mem::take(&mut self.current_bytecode), 
-                    std::mem::take(&mut self.variables), 
-                    std::mem::take(&mut self.variable_types), 
+                    std::mem::take(&mut self.current_bytecode),
+                    std::mem::take(&mut self.variables),
+                    std::mem::take(&mut self.variable_types),
                     self.next_slot
                 );
 
                 self.next_slot = 0;
-                // Corregido: params es Vec<(String, KType)>
                 for (p_name, p_type) in params {
                     p_sigs.push_str(&p_type.to_jvm_sig());
                     self.variables.insert(p_name.clone(), self.next_slot);
@@ -102,26 +77,22 @@ impl Compiler {
                     self.next_slot += 1;
                 }
 
-                let sig = format!("({}){}", p_sigs, ret_sig);
-                let n_idx = self.cp.add_utf8(&name);
-                let s_idx = self.cp.add_utf8(&sig);
-
                 for s in body { self.compile_statement(s); }
                 
-                // Return por defecto según el tipo
-                self.current_bytecode.push(if return_type.is_reference() { 0xB0 } else if return_type == crate::compiler::types::KType::Void { 0xB1 } else { 0xAC });
+                if return_type == crate::compiler::types::KType::Void {
+                    self.current_bytecode.push(0xB1);
+                }
 
-                self.methods.push(MethodInfo { 
-                    name_idx: n_idx, 
-                    sig_idx: s_idx, 
-                    bytecode: std::mem::take(&mut self.current_bytecode), 
-                    max_locals: self.next_slot as u16 
+                self.methods.push(MethodInfo {
+                    name_idx: self.cp.add_utf8(&name),
+                    sig_idx: self.cp.add_utf8(&format!("({}){}", p_sigs, return_type.to_jvm_sig())),
+                    bytecode: std::mem::take(&mut self.current_bytecode),
+                    max_locals: self.next_slot as u16,
                 });
 
-                // Restauramos estado
-                self.current_bytecode = old_bc; 
-                self.variables = old_vars; 
-                self.variable_types = old_types; 
+                self.current_bytecode = old_bc;
+                self.variables = old_vars;
+                self.variable_types = old_types;
                 self.next_slot = old_slot;
             }
             Stmt::Call(name, args) => {
@@ -135,7 +106,7 @@ impl Compiler {
                     self.compile_expression(expr);
                     self.current_bytecode.push(if is_ref { 0xB0 } else { 0xAC });
                 } else {
-                    self.current_bytecode.push(0xB1); // return void
+                    self.current_bytecode.push(0xB1);
                 }
             }
             Stmt::IndexAssign(name, idx_expr, val_expr) => {
@@ -148,5 +119,35 @@ impl Compiler {
                 }
             }
         }
+    }
+    pub fn prepare_println_call(&mut self) {
+        let sys_u = self.cp.add_utf8("java/lang/System");
+        let sys_c = self.cp.add_class(sys_u);
+        let out_u = self.cp.add_utf8("out");
+        let out_s = self.cp.add_utf8("Ljava/io/PrintStream;");
+        let nt_out = self.cp.add_name_and_type(out_u, out_s);
+        let f_out = self.cp.add_field_ref(sys_c, nt_out);
+        self.current_bytecode.push(0xB2); // getstatic
+        self.current_bytecode.extend_from_slice(&f_out.to_be_bytes());
+    }
+
+    pub fn emit_println_invoke(&mut self, is_ref: bool) {
+        let sig_str = if is_ref { "(Ljava/lang/Object;)V" } else { "(I)V" };
+        let ps_u = self.cp.add_utf8("java/io/PrintStream");
+        let ps_c = self.cp.add_class(ps_u);
+        let pr_u = self.cp.add_utf8("println");
+        let pr_s = self.cp.add_utf8(sig_str);
+        let nt_pr = self.cp.add_name_and_type(pr_u, pr_s);
+        let m_pr = self.cp.add_method_ref(ps_c, nt_pr);
+        self.current_bytecode.push(0xB6); // invokevirtual
+        self.current_bytecode.extend_from_slice(&m_pr.to_be_bytes());
+    }
+
+    fn get_or_create_slot(&mut self, name: &str) -> u8 {
+        *self.variables.entry(name.to_string()).or_insert_with(|| {
+            let s = self.next_slot;
+            self.next_slot += 1;
+            s
+        })
     }
 }

@@ -12,66 +12,55 @@ impl SemanticAnalyzer {
         Self { symbols: HashMap::new() }
     }
 
-    // NUEVO: Método para analizar toda la lista de sentencias
     pub fn analyze(&mut self, ast: &[Stmt]) -> Result<(), String> {
-        for stmt in ast {
-            self.check_stmt(stmt)?;
-        }
+        for stmt in ast { self.check_stmt(stmt)?; }
         Ok(())
     }
 
     pub fn check_stmt(&mut self, stmt: &Stmt) -> Result<(), String> {
         match stmt {
-            // Corregido: Ahora acepta 3 campos
             Stmt::Let(name, expr, _type_ann) => {
                 let t = self.check_expr(expr)?;
                 self.symbols.insert(name.clone(), t);
                 Ok(())
             }
             Stmt::Print(expr) => { self.check_expr(expr)?; Ok(()) }
-            Stmt::If(cond, if_body, else_body) => {
-                if self.check_expr(cond)? != KType::Bool {
-                    return Err("La condición del 'if' debe ser Bool".into());
+            Stmt::Function(name, params, body, ret_type) => {
+                self.symbols.insert(name.clone(), ret_type.clone());
+                
+                // --- SOLUCIÓN AL ERROR: Gestionar el ámbito de los parámetros ---
+                let old_symbols = self.symbols.clone(); // Guardamos ámbito superior
+                for (p_name, p_type) in params {
+                    self.symbols.insert(p_name.clone(), p_type.clone());
                 }
+
+                for s in body { self.check_stmt(s)?; }
+                
+                self.symbols = old_symbols; // Restauramos el ámbito original
+                Ok(())
+            }
+            Stmt::If(cond, if_body, else_body) => {
+                if self.check_expr(cond)? != KType::Bool { return Err("Condición debe ser Bool".into()); }
                 for s in if_body { self.check_stmt(s)?; }
                 if let Some(eb) = else_body { for s in eb { self.check_stmt(s)?; } }
                 Ok(())
             }
             Stmt::While(cond, body) => {
-                if self.check_expr(cond)? != KType::Bool {
-                    return Err("La condición del 'while' debe ser Bool".into());
-                }
+                if self.check_expr(cond)? != KType::Bool { return Err("Condición debe ser Bool".into()); }
                 for s in body { self.check_stmt(s)?; }
                 Ok(())
             }
-            Stmt::Function(name, params, body, ret_type) => {
-                self.symbols.insert(name.clone(), ret_type.clone());
-                // En un lenguaje real, aquí crearías un nuevo ámbito para los params
-                for s in body { self.check_stmt(s)?; }
-                Ok(())
-            }
-            // Corregido: Manejo de Option<Expr>
             Stmt::Return(maybe_expr) => {
-                if let Some(expr) = maybe_expr {
-                    self.check_expr(expr)?;
-                }
+                if let Some(expr) = maybe_expr { self.check_expr(expr)?; }
                 Ok(())
             }
-            Stmt::Call(_, args) => {
-                for a in args { self.check_expr(a)?; }
-                Ok(())
-            }
-            Stmt::IndexAssign(name, idx_expr, val_expr) => {
-                self.check_expr(idx_expr)?;
-                let val_t = self.check_expr(val_expr)?;
+            Stmt::Call(_, args) => { for a in args { self.check_expr(a)?; } Ok(()) }
+            Stmt::IndexAssign(name, idx, val) => {
+                self.check_expr(idx)?;
+                let val_t = self.check_expr(val)?;
                 match self.symbols.get(name) {
-                    Some(KType::Array(inner)) => {
-                        if **inner != val_t {
-                            return Err(format!("Tipo incorrecto para el arreglo '{}'", name));
-                        }
-                        Ok(())
-                    },
-                    _ => Err(format!("'{}' no es un arreglo", name))
+                    Some(KType::Array(inner)) if **inner == val_t => Ok(()),
+                    _ => Err(format!("Error de tipo en arreglo '{}'", name)),
                 }
             }
         }
@@ -87,12 +76,11 @@ impl SemanticAnalyzer {
                 let lt = self.check_expr(l)?;
                 let rt = self.check_expr(r)?;
                 if op == "+" && (lt == KType::String || rt == KType::String) { Ok(KType::String) }
-                else { Ok(lt) } // Simplificación
+                else { Ok(lt) }
             }
             Expr::ArrayLiteral(elems) => {
                 if elems.is_empty() { return Ok(KType::Array(Box::new(KType::Int))); }
-                let first_t = self.check_expr(&elems[0])?;
-                Ok(KType::Array(Box::new(first_t)))
+                Ok(KType::Array(Box::new(self.check_expr(&elems[0])?)))
             }
             Expr::ArrayAccess(name, idx) => {
                 self.check_expr(idx)?;
@@ -101,8 +89,7 @@ impl SemanticAnalyzer {
                     _ => Err(format!("'{}' no es un arreglo", name)),
                 }
             }
-            Expr::Input => Ok(KType::Int),
-            Expr::Call(_, _) => Ok(KType::Int),
+            _ => Ok(KType::Int),
         }
     }
 }

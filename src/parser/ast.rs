@@ -16,14 +16,12 @@ pub enum Expr {
 
 #[derive(Debug, Clone)]
 pub enum Stmt {
-    // Nombre, Expresión, Tipo Anotado (como String para el parser)
-    Let(String, Expr, Option<String>), 
+    Let(String, Expr, Option<String>), // (Nombre, Expr, Tipo Opcional)
     Print(Expr),
     If(Expr, Vec<Stmt>, Option<Vec<Stmt>>),
     While(Expr, Vec<Stmt>),
-    // Nombre, Parámetros (Nombre, Tipo), Cuerpo, Tipo de Retorno
-    Function(String, Vec<(String, KType)>, Vec<Stmt>, KType),
+    Function(String, Vec<(String, KType)>, Vec<Stmt>, KType), // (Nombre, Params, Cuerpo, Retorno)
     Call(String, Vec<Expr>),
-    Return(Option<Expr>), // El retorno puede ser vacío en Lua
+    Return(Option<Expr>),
     IndexAssign(String, Expr, Expr),
 }
