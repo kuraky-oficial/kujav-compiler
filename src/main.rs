@@ -13,6 +13,7 @@ use std::path::Path;
 use cli::{Cli, Commands};
 use errors::{KujavError, KujavResult};
 use package::lockfile::write_lockfile;
+use package::resolver::validate_java_classpath;
 use toml_config::KujavToml;
 
 fn main() {
@@ -49,7 +50,7 @@ fn new_project(project: &str) -> KujavResult<()> {
     let root = Path::new(project);
     fs::create_dir_all(root.join("src"))?;
     let toml = format!(
-        "[package]\nname = \"{project}\"\nversion = \"0.1.0\"\nmain = \"src/main.kj\"\nedition = \"2026\"\n\n[dependencies]\n"
+        "[package]\nname = \"{project}\"\nversion = \"0.1.0\"\nmain = \"src/main.kj\"\nedition = \"2026\"\n\n[dependencies]\n\n[java]\nclasspath = []\n"
     );
     fs::write(root.join("kujav.toml"), toml)?;
     fs::write(
@@ -78,12 +79,13 @@ fn build_project() -> KujavResult<()> {
     let (cfg, source) = load_project()?;
     fs::create_dir_all("target")?;
     write_lockfile(&cfg)?;
+    validate_java_classpath(&cfg)?;
 
     let class_path = format!("target/{}.class", cfg.package.name);
     compiler::pipeline::compile_to_class(&cfg.package.name, &source, &class_path)?;
 
     let jar_path = format!("target/{}.jar", cfg.package.name);
-    compiler::pipeline::package_jar(&cfg.package.name, &class_path, &jar_path)?;
+    compiler::pipeline::package_jar(&cfg, &class_path, &jar_path)?;
     println!("Built {}", jar_path);
     Ok(())
 }

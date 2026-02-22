@@ -7,6 +7,7 @@ use crate::compiler::codegen::{Compiler, MethodInfo};
 use crate::compiler::semantics::SemanticAnalyzer;
 use crate::errors::{KujavError, KujavResult};
 use crate::parser;
+use crate::toml_config::KujavToml;
 
 pub fn check_only(source: &str) -> KujavResult<()> {
     let ast = parser::parse_to_ast(source);
@@ -55,17 +56,30 @@ pub fn compile_to_class(class_name: &str, source: &str, out_path: &str) -> Kujav
     Ok(())
 }
 
-pub fn package_jar(class_name: &str, class_path: &str, jar_path: &str) -> KujavResult<()> {
+pub fn package_jar(cfg: &KujavToml, class_path: &str, jar_path: &str) -> KujavResult<()> {
     let file = fs::File::create(jar_path)?;
     let mut zip = zip::ZipWriter::new(file);
     let options = FileOptions::default();
 
     zip.start_file("META-INF/MANIFEST.MF", options)
         .map_err(|e| KujavError::bytecode(e.to_string()))?;
-    let manifest = format!("Manifest-Version: 1.0\nMain-Class: {class_name}\n\n");
+    let manifest = format!(
+        "Manifest-Version: 1.0\nMain-Class: {}\n\n",
+        cfg.package.name
+    );
     zip.write_all(manifest.as_bytes())?;
 
-    zip.start_file(format!("{class_name}.class"), options)
+    if let Some(mc) = &cfg.minecraft {
+        zip.start_file("plugin.yml", options)
+            .map_err(|e| KujavError::bytecode(e.to_string()))?;
+        let plugin_yml = format!(
+            "name: {}\nversion: {}\nmain: {}\napi-version: {}\n",
+            mc.plugin_name, mc.plugin_version, mc.main_class, mc.api
+        );
+        zip.write_all(plugin_yml.as_bytes())?;
+    }
+
+    zip.start_file(format!("{}.class", cfg.package.name), options)
         .map_err(|e| KujavError::bytecode(e.to_string()))?;
     zip.write_all(&fs::read(class_path)?)?;
     zip.finish()
