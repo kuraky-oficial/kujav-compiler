@@ -2,8 +2,8 @@
 pub mod expressions;
 pub mod statements;
 
-use std::collections::HashMap;
 use crate::core::constant_pool::ConstantPool;
+use std::collections::HashMap;
 
 pub struct MethodInfo {
     pub name_idx: u16,

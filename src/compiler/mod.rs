@@ -1,4 +1,4 @@
-// src/compiler/mod.rs
-pub mod types;
-pub mod semantics;
 pub mod codegen;
+pub mod pipeline;
+pub mod semantics;
+pub mod types;

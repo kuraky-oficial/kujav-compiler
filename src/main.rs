@@ -1,109 +1,116 @@
-// src/main.rs
-mod core; mod reader; mod parser; mod compiler;
+mod cli;
+mod compiler;
+mod core;
+mod errors;
+mod package;
+mod parser;
+mod reader;
+mod toml_config;
+
 use std::fs;
-use std::io::Write;
-use crate::compiler::semantics::SemanticAnalyzer;
-use crate::compiler::codegen::Compiler;
+use std::path::Path;
 
-fn main() -> std::io::Result<()> {
-    let source_code = r#"
-        function saludar(n: Int)
-            print "Número: " + n
-        end
+use cli::{Cli, Commands};
+use errors::{KujavError, KujavResult};
+use package::lockfile::write_lockfile;
+use toml_config::KujavToml;
 
-        local x: Int = 10
-        while x > 0 do
-            saludar(x)
-            local x = x - 1
-        end
-    "#;
-
-    println!("🔨 Compilando Kujav (Lua Mode)...");
-    let ast = parser::parse_to_ast(source_code);
-
-    let mut analyzer = SemanticAnalyzer::new();
-    if let Err(e) = analyzer.analyze(&ast) {
-        eprintln!("❌ Error Semántico: {}", e);
+fn main() {
+    if let Err(err) = run() {
+        eprintln!("{err}");
         std::process::exit(1);
     }
+}
 
-    let mut kujav = Compiler::new();
-    
-    // 1. REGISTRAR CONSTANTES EN EL POZO ANTES DE COMPILAR
-    let cls_u = kujav.cp.add_utf8("Salida");
-    let this_c = kujav.cp.add_class(cls_u);
-    let obj_super_u = kujav.cp.add_utf8("java/lang/Object");
-    let super_c = kujav.cp.add_class(obj_super_u);
-    
-    let m_n = kujav.cp.add_utf8("main");
-    let m_t = kujav.cp.add_utf8("([Ljava/lang/String;)V");
-    let c_a = kujav.cp.add_utf8("Code");
-
-    // 2. COMPILAR EL AST (Esto también añade cosas al pozo)
-    for stmt in ast { 
-        kujav.compile_statement(stmt);
+fn run() -> KujavResult<()> {
+    let cli = Cli::parse()?;
+    match cli.command {
+        Commands::New { project } => new_project(&project),
+        Commands::Build => build_project(),
+        Commands::Run => run_project(),
+        Commands::Check => check_project(),
+        Commands::Install => {
+            println!("kujav install: dependency fetch pipeline pending registry integration");
+            Ok(())
+        }
+        Commands::Update => {
+            println!("kujav update: semver resolver upgrade pipeline pending");
+            Ok(())
+        }
+        Commands::Publish => {
+            println!("kujav publish: registry client pipeline pending authentication");
+            Ok(())
+        }
+        Commands::Clean => clean_project(),
     }
-    kujav.current_bytecode.push(0xB1); // return final del main
+}
 
-    // 3. ESCRIBIR EL ARCHIVO BINARIO
-    let mut file = fs::File::create("Salida.class")?;
-    file.write_all(&[0xCA, 0xFE, 0xBA, 0xBE, 0x00, 0x00, 0x00, 0x31])?; // Magic & Version
-    
-    // ¡Aquí se sella el Constant Pool!
-    file.write_all(&kujav.cp.to_bytes())?;
-    
-    file.write_all(&[0x00, 0x21])?; // Access flags: ACC_PUBLIC | ACC_SUPER
-    file.write_all(&this_c.to_be_bytes())?; 
-    file.write_all(&super_c.to_be_bytes())?;
-    file.write_all(&[0x00, 0x00, 0x00, 0x00])?; // Interfaces, Fields
-
-    // Métodos
-    let num_methods = (1 + kujav.methods.len()) as u16;
-    file.write_all(&num_methods.to_be_bytes())?;
-
-    // Pasamos los índices directamente (m_n, m_t, c_a)
-    write_main_method(&mut file, &kujav, m_n, m_t, c_a)?;
-
-    for m in &kujav.methods {
-        write_custom_method(&mut file, m, c_a)?;
-    }
-
-    file.write_all(&[0x00, 0x00])?; // Class attributes
-    println!("✅ Salida.class generada con éxito.");
+fn new_project(project: &str) -> KujavResult<()> {
+    let root = Path::new(project);
+    fs::create_dir_all(root.join("src"))?;
+    let toml = format!(
+        "[package]\nname = \"{project}\"\nversion = \"0.1.0\"\nmain = \"src/main.kj\"\nedition = \"2026\"\n\n[dependencies]\n"
+    );
+    fs::write(root.join("kujav.toml"), toml)?;
+    fs::write(
+        root.join("src/main.kj"),
+        "function main(): Int\n    local answer: Int = 42\n    print answer\n    return 0\nend\n",
+    )?;
+    println!("Created Kujav project: {project}");
     Ok(())
 }
 
-// --- FUNCIONES DE ESCRITURA DE BYTES ---
+fn load_project() -> KujavResult<(KujavToml, String)> {
+    let cfg = KujavToml::from_path("kujav.toml")?;
+    let source = fs::read_to_string(&cfg.package.main)
+        .map_err(|_| KujavError::io(format!("missing source file '{}'", cfg.package.main)))?;
+    Ok((cfg, source))
+}
 
-fn write_main_method(file: &mut fs::File, kujav: &Compiler, m_n: u16, m_t: u16, c_a: u16) -> std::io::Result<()> {
-    file.write_all(&[0x00, 0x09])?; // public static
-    file.write_all(&m_n.to_be_bytes())?; 
-    file.write_all(&m_t.to_be_bytes())?;
-    file.write_all(&[0x00, 0x01])?; // attribute_count: 1
-    file.write_all(&c_a.to_be_bytes())?; // "Code" attribute
-    
-    let main_len: u32 = 12 + kujav.current_bytecode.len() as u32;
-    file.write_all(&main_len.to_be_bytes())?;
-    file.write_all(&[0x00, 0x0A, 0x00, 0x0A])?; // max_stack (10), max_locals (10)
-    file.write_all(&(kujav.current_bytecode.len() as u32).to_be_bytes())?;
-    file.write_all(&kujav.current_bytecode)?; // Bytecode del main
-    file.write_all(&[0x00, 0x00, 0x00, 0x00])?; // exception_table_length (0), attributes_count (0)
+fn check_project() -> KujavResult<()> {
+    let (_cfg, source) = load_project()?;
+    compiler::pipeline::check_only(&source)?;
+    println!("check finished without errors");
     Ok(())
 }
 
-fn write_custom_method(file: &mut fs::File, m: &crate::compiler::codegen::MethodInfo, c_a: u16) -> std::io::Result<()> {
-    file.write_all(&[0x00, 0x09])?; // public static
-    file.write_all(&m.name_idx.to_be_bytes())?; 
-    file.write_all(&m.sig_idx.to_be_bytes())?;
-    file.write_all(&[0x00, 0x01])?; // attribute_count: 1
-    file.write_all(&c_a.to_be_bytes())?; // "Code" attribute
-    
-    let attr_len: u32 = 12 + m.bytecode.len() as u32;
-    file.write_all(&attr_len.to_be_bytes())?;
-    file.write_all(&[0x00, 0x0A])?; // max_stack fijo en 10
-    file.write_all(&m.max_locals.to_be_bytes())?; // max_locals dinámico
-    file.write_all(&(m.bytecode.len() as u32).to_be_bytes())?;
-    file.write_all(&m.bytecode)?; // Bytecode de la función
-    file.write_all(&[0x00, 0x00, 0x00, 0x00])?; // exception_table_length (0), attributes_count (0)
+fn build_project() -> KujavResult<()> {
+    let (cfg, source) = load_project()?;
+    fs::create_dir_all("target")?;
+    write_lockfile(&cfg)?;
+
+    let class_path = format!("target/{}.class", cfg.package.name);
+    compiler::pipeline::compile_to_class(&cfg.package.name, &source, &class_path)?;
+
+    let jar_path = format!("target/{}.jar", cfg.package.name);
+    compiler::pipeline::package_jar(&cfg.package.name, &class_path, &jar_path)?;
+    println!("Built {}", jar_path);
+    Ok(())
+}
+
+fn run_project() -> KujavResult<()> {
+    let cfg = KujavToml::from_path("kujav.toml")?;
+    let jar_path = format!("target/{}.jar", cfg.package.name);
+    if !Path::new(&jar_path).exists() {
+        build_project()?;
+    }
+    let status = std::process::Command::new("java")
+        .arg("-jar")
+        .arg(&jar_path)
+        .status()
+        .map_err(|_| KujavError::io("failed to execute java runtime"))?;
+    if !status.success() {
+        return Err(KujavError::bytecode(
+            "java runtime returned non-zero status",
+        ));
+    }
+    Ok(())
+}
+
+fn clean_project() -> KujavResult<()> {
+    if Path::new("target").exists() {
+        fs::remove_dir_all("target")?;
+    }
+    println!("cleaned target/");
     Ok(())
 }

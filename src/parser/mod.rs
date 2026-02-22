@@ -1,9 +1,9 @@
 // src/parser/mod.rs
 pub mod ast;
+use self::ast::{Expr, Stmt};
+use crate::compiler::types::KType;
 use pest::Parser;
 use pest_derive::Parser as PestParser;
-use crate::compiler::types::KType;
-use self::ast::{Expr, Stmt};
 
 #[derive(PestParser)]
 #[grammar = "parser/kujav.pest"]
@@ -12,7 +12,8 @@ pub struct KujavParser;
 pub fn parse_to_ast(input: &str) -> Vec<Stmt> {
     let pairs = KujavParser::parse(Rule::program, input)
         .expect("Error al parsear el archivo .kj")
-        .next().unwrap();
+        .next()
+        .unwrap();
 
     let mut statements = Vec::new();
     for pair in pairs.into_inner() {
@@ -35,19 +36,19 @@ fn process_stmt(pair: pest::iterators::Pair<Rule>) -> Option<Stmt> {
     let inner_pair = pair.into_inner().next().unwrap();
     match inner_pair.as_rule() {
         Rule::let_decl => {
-    let mut inner = inner_pair.into_inner();
-    let name = inner.next().unwrap().as_str().to_string();
-    let mut next = inner.next().unwrap();
-    let mut type_name_str = None;
+            let mut inner = inner_pair.into_inner();
+            let name = inner.next().unwrap().as_str().to_string();
+            let mut next = inner.next().unwrap();
+            let mut type_name_str = None;
 
-    if next.as_rule() == Rule::type_name {
-        // Guardamos el nombre del tipo como String para el AST
-        type_name_str = Some(next.as_str().to_string());
-        next = inner.next().unwrap();
-    }
-    let expr = process_expr(next);
-    Some(Stmt::Let(name, expr, type_name_str))
-}
+            if next.as_rule() == Rule::type_name {
+                // Guardamos el nombre del tipo como String para el AST
+                type_name_str = Some(next.as_str().to_string());
+                next = inner.next().unwrap();
+            }
+            let expr = process_expr(next);
+            Some(Stmt::Let(name, expr, type_name_str))
+        }
         Rule::fun_decl => {
             let mut inner = inner_pair.into_inner();
             let name = inner.next().unwrap().as_str().to_string();
@@ -70,7 +71,9 @@ fn process_stmt(pair: pest::iterators::Pair<Rule>) -> Option<Stmt> {
                     }
                     Rule::block => {
                         for p in next.into_inner() {
-                            if let Some(s) = process_stmt(p) { body.push(s); }
+                            if let Some(s) = process_stmt(p) {
+                                body.push(s);
+                            }
                         }
                     }
                     _ => {}
@@ -84,13 +87,17 @@ fn process_stmt(pair: pest::iterators::Pair<Rule>) -> Option<Stmt> {
             let if_block = inner.next().unwrap();
             let mut if_body = Vec::new();
             for p in if_block.into_inner() {
-                if let Some(s) = process_stmt(p) { if_body.push(s); }
+                if let Some(s) = process_stmt(p) {
+                    if_body.push(s);
+                }
             }
             let mut else_body = None;
             if let Some(else_block) = inner.next() {
                 let mut e_body = Vec::new();
                 for p in else_block.into_inner() {
-                    if let Some(s) = process_stmt(p) { e_body.push(s); }
+                    if let Some(s) = process_stmt(p) {
+                        e_body.push(s);
+                    }
                 }
                 else_body = Some(e_body);
             }
@@ -102,7 +109,9 @@ fn process_stmt(pair: pest::iterators::Pair<Rule>) -> Option<Stmt> {
             let block = inner.next().unwrap();
             let mut body = Vec::new();
             for p in block.into_inner() {
-                if let Some(s) = process_stmt(p) { body.push(s); }
+                if let Some(s) = process_stmt(p) {
+                    body.push(s);
+                }
             }
             Some(Stmt::While(cond, body))
         }
@@ -119,7 +128,9 @@ fn process_stmt(pair: pest::iterators::Pair<Rule>) -> Option<Stmt> {
             let name = inner.next().unwrap().as_str().to_string();
             let mut args = Vec::new();
             if let Some(arg_list) = inner.next() {
-                for arg in arg_list.into_inner() { args.push(process_expr(arg)); }
+                for arg in arg_list.into_inner() {
+                    args.push(process_expr(arg));
+                }
             }
             Some(Stmt::Call(name, args))
         }
